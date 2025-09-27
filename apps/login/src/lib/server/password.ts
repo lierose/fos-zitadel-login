@@ -32,13 +32,10 @@ import { headers } from "next/headers";
 import { getNextUrl } from "../client";
 import { getSessionCookieById, getSessionCookieByLoginName } from "../cookies";
 import { getServiceUrlFromHeaders } from "../service-url";
-import {
-  checkEmailVerification,
-  checkMFAFactors,
-  checkPasswordChangeRequired,
-  checkUserVerification,
-} from "../verify-helper";
+import { checkUserVerification } from "../verify-helper";
 import { createServerTransport } from "../zitadel";
+import { cookies as nextCookies } from "next/headers";
+import { createJWT, setJWTCookie } from "../jwt";
 
 type ResetPasswordCommand = {
   loginName: string;
@@ -61,11 +58,7 @@ export async function resetPassword(command: ResetPasswordCommand) {
     organizationId: command.organization,
   });
 
-  if (
-    !users.details ||
-    users.details.totalResult !== BigInt(1) ||
-    !users.result[0].userId
-  ) {
+  if (!users.details || users.details.totalResult !== BigInt(1) || !users.result[0].userId) {
     return { error: "Could not send Password Reset Link" };
   }
   const userId = users.result[0].userId;
@@ -86,246 +79,119 @@ export type UpdateSessionCommand = {
   organization?: string;
   checks: Checks;
   requestId?: string;
+  authRequest?: string;
 };
 
 export async function sendPassword(command: UpdateSessionCommand) {
   const _headers = await headers();
   const { serviceUrl } = getServiceUrlFromHeaders(_headers);
 
-  let sessionCookie = await getSessionCookieByLoginName({
+  const users = await listUsers({
+    serviceUrl,
     loginName: command.loginName,
-    organization: command.organization,
-  }).catch((error) => {
-    console.warn("Ignored error:", error);
+    organizationId: command.organization,
   });
 
-  let session;
-  let user: User;
-  let loginSettings: LoginSettings | undefined;
-
-  if (!sessionCookie) {
-    const users = await listUsers({
-      serviceUrl,
-      loginName: command.loginName,
-      organizationId: command.organization,
-    });
-
-    if (users.details?.totalResult == BigInt(1) && users.result[0].userId) {
-      user = users.result[0];
-
-      const checks = create(ChecksSchema, {
-        user: { search: { case: "userId", value: users.result[0].userId } },
-        password: { password: command.checks.password?.password },
-      });
-
-      loginSettings = await getLoginSettings({
-        serviceUrl,
-        organization: command.organization,
-      });
-
-      try {
-        session = await createSessionAndUpdateCookie({
-          checks,
-          requestId: command.requestId,
-          lifetime: loginSettings?.passwordCheckLifetime,
-        });
-      } catch (error: any) {
-        if ("failedAttempts" in error && error.failedAttempts) {
-          const lockoutSettings = await getLockoutSettings({
-            serviceUrl,
-            orgId: command.organization,
-          });
-
-          return {
-            error:
-              `Failed to authenticate. You had ${error.failedAttempts} of ${lockoutSettings?.maxPasswordAttempts} password attempts.` +
-              (lockoutSettings?.maxPasswordAttempts &&
-              error.failedAttempts >= lockoutSettings?.maxPasswordAttempts
-                ? "Contact your administrator to unlock your account"
-                : ""),
-          };
-        }
-        return { error: "Could not create session for user" };
-      }
-    }
-
-    // this is a fake error message to hide that the user does not even exist
+  if (!users.details || users.details.totalResult !== BigInt(1) || !users.result[0].userId) {
     return { error: "Could not verify password" };
-  } else {
-    loginSettings = await getLoginSettings({
-      serviceUrl,
-      organization: sessionCookie.organization,
-    });
-
-    if (!loginSettings) {
-      return { error: "Could not load login settings" };
-    }
-
-    let lifetime = loginSettings.passwordCheckLifetime;
-
-    if (!lifetime) {
-      console.warn("No password lifetime provided, defaulting to 24 hours");
-      lifetime = {
-        seconds: BigInt(60 * 60 * 24), // default to 24 hours
-        nanos: 0,
-      } as Duration;
-    }
-
-    try {
-      session = await setSessionAndUpdateCookie({
-        recentCookie: sessionCookie,
-        checks: command.checks,
-        requestId: command.requestId,
-        lifetime,
-      });
-    } catch (error: any) {
-      if ("failedAttempts" in error && error.failedAttempts) {
-        const lockoutSettings = await getLockoutSettings({
-          serviceUrl,
-          orgId: command.organization,
-        });
-
-        return {
-          error:
-            `Failed to authenticate. You had ${error.failedAttempts} of ${lockoutSettings?.maxPasswordAttempts} password attempts.` +
-            (lockoutSettings?.maxPasswordAttempts &&
-            error.failedAttempts >= lockoutSettings?.maxPasswordAttempts
-              ? " Contact your administrator to unlock your account"
-              : ""),
-        };
-      }
-      throw error;
-    }
-
-    if (!session?.factors?.user?.id) {
-      return { error: "Could not create session for user" };
-    }
-
-    const userResponse = await getUserByID({
-      serviceUrl,
-      userId: session?.factors?.user?.id,
-    });
-
-    if (!userResponse.user) {
-      return { error: "User not found in the system" };
-    }
-
-    user = userResponse.user;
   }
 
-  if (!loginSettings) {
-    loginSettings = await getLoginSettings({
-      serviceUrl,
-      organization:
-        command.organization ?? session.factors?.user?.organizationId,
+  const user = users.result[0];
+
+  const checks = create(ChecksSchema, {
+    user: { search: { case: "userId", value: user.userId } },
+    password: { password: command.checks.password?.password },
+  });
+
+  const loginSettings = await getLoginSettings({ serviceUrl, organization: command.organization });
+
+  try {
+    const tempSession = await createSessionAndUpdateCookie({
+      checks,
+      requestId: undefined,
+      lifetime: loginSettings?.passwordCheckLifetime,
     });
+
+    const cookieStore = await nextCookies();
+    cookieStore.delete("zid");
+  } catch (e: any) {
+    if ("failedAttempts" in e && e.failedAttempts) {
+      const lockout = await getLockoutSettings({ serviceUrl, orgId: command.organization });
+      return {
+        error:
+          `Failed to authenticate. You had ${e.failedAttempts} of ${lockout?.maxPasswordAttempts} password attempts.` +
+          (lockout?.maxPasswordAttempts && e.failedAttempts >= lockout?.maxPasswordAttempts
+            ? " Contact your administrator to unlock your account"
+            : ""),
+      };
+    }
+    return { error: "Could not verify password" };
   }
 
-  if (!session?.factors?.user?.id || !sessionCookie) {
-    return { error: "Could not create session for user" };
-  }
+  const userResponse = await getUserByID({ serviceUrl, userId: user.userId });
+  if (!userResponse.user) return { error: "User not found in the system" };
 
-  const humanUser = user.type.case === "human" ? user.type.value : undefined;
+  const fullUser = userResponse.user;
+  const humanUser = fullUser?.type.case === "human" ? fullUser.type.value : undefined;
+
+  if (fullUser?.state === UserState.INITIAL) return { error: "Initial User not supported" };
 
   const expirySettings = await getPasswordExpirySettings({
     serviceUrl,
-    orgId: command.organization ?? session.factors?.user?.organizationId,
+    orgId: command.organization,
   });
 
-  // check if the user has to change password first
-  const passwordChangedCheck = checkPasswordChangeRequired(
-    expirySettings,
-    session,
-    humanUser,
-    command.organization,
-    command.requestId,
-  );
-
-  if (passwordChangedCheck?.redirect) {
-    return passwordChangedCheck;
+  const authMethodResponse = await listAuthenticationMethodTypes({ serviceUrl, userId: user.userId });
+  if (!authMethodResponse?.authMethodTypes?.length) {
+    return { error: "No authentication methods configured for user" };
   }
 
-  // throw error if user is in initial state here and do not continue
-  if (user.state === UserState.INITIAL) {
-    return { error: "Initial User not supported" };
-  }
+  const jwtToken = await createJWT({
+    userId: user.userId,
+    loginName: fullUser.preferredLoginName || command.loginName,
+    organizationId: command.organization,
+    displayName: humanUser?.profile?.displayName,
+  });
 
-  // check to see if user was verified
-  const emailVerificationCheck = checkEmailVerification(
-    session,
-    humanUser,
-    command.organization,
-    command.requestId,
-  );
+  await setJWTCookie(jwtToken, 86400);
 
-  if (emailVerificationCheck?.redirect) {
-    return emailVerificationCheck;
-  }
+  console.log("🔑 JWT Token Created:", jwtToken);
 
-  // if password, check if user has MFA methods
-  let authMethods;
-  if (command.checks && command.checks.password && session.factors?.user?.id) {
-    const response = await listAuthenticationMethodTypes({
-      serviceUrl,
-      userId: session.factors.user.id,
-    });
-    if (response.authMethodTypes && response.authMethodTypes.length) {
-      authMethods = response.authMethodTypes;
-    }
-  }
+  if (command.authRequest || command.requestId) {
+    let authRequestId = command.authRequest || command.requestId || "";
+    if (authRequestId.startsWith("oidc_")) authRequestId = authRequestId.replace(/^oidc_/, "");
 
-  if (!authMethods) {
-    return { error: "Could not verify password!" };
-  }
-
-  const mfaFactorCheck = await checkMFAFactors(
-    serviceUrl,
-    session,
-    loginSettings,
-    authMethods,
-    command.organization,
-    command.requestId,
-  );
-
-  if (mfaFactorCheck?.redirect) {
-    return mfaFactorCheck;
-  }
-
-  if (command.requestId && session.id) {
-    const nextUrl = await getNextUrl(
-      {
-        sessionId: session.id,
-        requestId: command.requestId,
-        organization:
-          command.organization ?? session.factors?.user?.organizationId,
+    const finalizeRes = await fetch(`${process.env.ZITADEL_API_URL}/v2/oidc/auth_requests/${authRequestId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.ZITADEL_SERVICE_USER_TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      loginSettings?.defaultRedirectUri,
-    );
+      body: JSON.stringify({
+        session: {
+          sessionId: "jwt-session",
+          sessionToken: jwtToken,
+        },
+      }),
+    });
 
-    return { redirect: nextUrl };
+    if (!finalizeRes.ok) {
+      const errText = await finalizeRes.text();
+      return { error: `OIDC finalize failed (${finalizeRes.status}): ${errText}` };
+    }
+
+    const { callbackUrl } = await finalizeRes.json();
+    return { redirect: callbackUrl };
   }
 
-  const url = await getNextUrl(
-    {
-      loginName: session.factors.user.loginName,
-      organization: session.factors?.user?.organizationId,
-    },
-    loginSettings?.defaultRedirectUri,
-  );
-
-  return { redirect: url };
+  return { redirect: "/profile" };
 }
 
-// this function lets users with code set a password or users with valid User Verification Check
-export async function changePassword(command: {
-  code?: string;
-  userId: string;
-  password: string;
-}) {
+export async function changePassword(command: { code?: string; userId: string; password: string }) {
   const _headers = await headers();
   const { serviceUrl } = getServiceUrlFromHeaders(_headers);
 
-  // check for init state
   const { user } = await getUserByID({
     serviceUrl,
     userId: command.userId,
@@ -340,25 +206,19 @@ export async function changePassword(command: {
     return { error: "User Initial State is not supported" };
   }
 
-  // check if the user has no password set in order to set a password
   if (!command.code) {
     const authmethods = await listAuthenticationMethodTypes({
       serviceUrl,
       userId,
     });
 
-    // if the user has no authmethods set, we need to check if the user was verified
     if (authmethods.authMethodTypes.length !== 0) {
       return {
-        error:
-          "You have to provide a code or have a valid User Verification Check",
+        error: "You have to provide a code or have a valid User Verification Check",
       };
     }
 
-    // check if a verification was done earlier
-    const hasValidUserVerificationCheck = await checkUserVerification(
-      user.userId,
-    );
+    const hasValidUserVerificationCheck = await checkUserVerification(user.userId);
 
     if (!hasValidUserVerificationCheck) {
       return { error: "User Verification Check has to be done" };

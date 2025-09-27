@@ -99,19 +99,41 @@ export function UsernameForm({
   }
 
   return (
-    <form className="w-full">
-      <div className="">
-        <TextInput
+    <form className="w-full space-y-6">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">Email</label>
+        <input
           type="text"
           autoComplete="username"
+          placeholder="your@email.com"
           {...register("loginName", { required: t("required.loginName") })}
-          label={inputLabel}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
           data-testid="username-text-input"
-          suffix={suffix}
         />
-        {allowRegister && (
+        {suffix && <span className="text-sm text-gray-500">@{suffix}</span>}
+      </div>
+
+      <button
+        type="submit"
+        onClick={handleSubmit((e) => submitLoginName(e, organization))}
+        disabled={loading || !formState.isValid}
+        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        data-testid="submit-button"
+      >
+        {loading && <Spinner className="mr-2 h-5 w-5" />}
+        Login
+      </button>
+
+      {error && (
+        <div className="py-4" data-testid="error">
+          <Alert>{error}</Alert>
+        </div>
+      )}
+
+      {allowRegister && (
+        <div className="text-center">
           <button
-            className="text-sm transition-all hover:text-primary-light-500 dark:hover:text-primary-dark-500"
+            className="text-sm text-gray-600 hover:text-green-600 transition-colors"
             onClick={() => {
               const registerParams = new URLSearchParams();
               if (organization) {
@@ -120,7 +142,6 @@ export function UsernameForm({
               if (requestId) {
                 registerParams.append("requestId", requestId);
               }
-
               router.push("/register?" + registerParams);
             }}
             type="button"
@@ -129,29 +150,8 @@ export function UsernameForm({
           >
             <Translated i18nKey="register" namespace="loginname" />
           </button>
-        )}
-      </div>
-
-      {error && (
-        <div className="py-4" data-testid="error">
-          <Alert>{error}</Alert>
         </div>
       )}
-      <div className="mt-4 flex w-full flex-row items-center">
-        <BackButton data-testid="back-button" />
-        <span className="flex-grow"></span>
-        <Button
-          data-testid="submit-button"
-          type="submit"
-          className="self-end"
-          variant={ButtonVariants.Primary}
-          disabled={loading || !formState.isValid}
-          onClick={handleSubmit((e) => submitLoginName(e, organization))}
-        >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}
-          <Translated i18nKey="submit" namespace="loginname" />
-        </Button>
-      </div>
     </form>
   );
 }

@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "Witamy ponownie!",
+    "title": "Zaloguj się",
     "description": "Wprowadź dane logowania.",
+    "subtitle": "Witamy ponownie! Proszę zaloguj się aby kontynuować",
+    "heroTitle": "Uwierzytelnianie, na które możesz polegać",
+    "heroDescription": "Zbudowane dla zespołów i firm, które stawiają na bezpieczeństwo i wydajność.",
     "register": "Zarejestruj nowego użytkownika",
     "submit": "Kontynuuj",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "Hasło",
       "description": "Wprowadź swoje hasło.",
+      "subtitle": "Wprowadź swoje hasło aby kontynuować",
       "resetPassword": "Zresetuj hasło",
       "submit": "Kontynuuj",
       "labels": {

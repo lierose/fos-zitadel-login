@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "欢迎回来！",
+    "title": "登录",
     "description": "请输入您的登录信息。",
+    "subtitle": "欢迎回来！请登录以继续",
+    "heroTitle": "值得信赖的身份验证",
+    "heroDescription": "为优先考虑安全性和效率的团队和企业而构建。",
     "register": "注册新用户",
     "submit": "继续",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "密码",
       "description": "请输入您的密码。",
+      "subtitle": "请输入您的密码以继续",
       "resetPassword": "重置密码",
       "submit": "继续",
       "labels": {

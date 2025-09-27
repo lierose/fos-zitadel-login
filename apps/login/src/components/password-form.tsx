@@ -116,18 +116,35 @@ export function PasswordForm({
   }
 
   return (
-    <form className="w-full">
-      <div className={`${error && "transform-gpu animate-shake"}`}>
-        <TextInput
+    <form className="w-full space-y-6">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">Password</label>
+        <input
           type="password"
           autoComplete="password"
+          placeholder="Enter your password"
           {...register("password", { required: t("verify.required.password") })}
-          label={t("verify.labels.password")}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
           data-testid="password-text-input"
         />
-        {!loginSettings?.hidePasswordReset && (
+        {loginName && <input type="hidden" name="loginName" autoComplete="username" value={loginName} />}
+      </div>
+
+      <button
+        type="submit"
+        onClick={handleSubmit(submitPassword)}
+        disabled={loading || !formState.isValid}
+        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        data-testid="submit-button"
+      >
+        {loading && <Spinner className="mr-2 h-5 w-5" />}
+        Continue
+      </button>
+
+      {!loginSettings?.hidePasswordReset && (
+        <div className="text-center">
           <button
-            className="text-sm transition-all hover:text-primary-light-500 dark:hover:text-primary-dark-500"
+            className="text-sm text-gray-600 hover:text-green-600 transition-colors"
             onClick={() => resetPasswordAndContinue()}
             type="button"
             disabled={loading}
@@ -135,17 +152,8 @@ export function PasswordForm({
           >
             <Translated i18nKey="verify.resetPassword" namespace="password" />
           </button>
-        )}
-
-        {loginName && (
-          <input
-            type="hidden"
-            name="loginName"
-            autoComplete="username"
-            value={loginName}
-          />
-        )}
-      </div>
+        </div>
+      )}
 
       {info && (
         <div className="py-4">
@@ -158,22 +166,6 @@ export function PasswordForm({
           <Alert>{error}</Alert>
         </div>
       )}
-
-      <div className="mt-8 flex w-full flex-row items-center">
-        <BackButton data-testid="back-button" />
-        <span className="flex-grow"></span>
-        <Button
-          type="submit"
-          className="self-end"
-          variant={ButtonVariants.Primary}
-          disabled={loading || !formState.isValid}
-          onClick={handleSubmit(submitPassword)}
-          data-testid="submit-button"
-        >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}{" "}
-          <Translated i18nKey="verify.submit" namespace="password" />
-        </Button>
-      </div>
     </form>
   );
 }

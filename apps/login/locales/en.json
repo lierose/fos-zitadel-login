@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "Welcome back!",
+    "title": "Login",
     "description": "Enter your login data.",
+    "subtitle": "Welcome back! Please sign in to continue",
+    "heroTitle": "Authentication You Can Rely On",
+    "heroDescription": "Built for teams and businesses that prioritize security and efficiency.",
     "register": "Register new user",
     "submit": "Continue",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "Password",
       "description": "Enter your password.",
+      "subtitle": "Enter your password to continue",
       "resetPassword": "Reset Password",
       "submit": "Continue",
       "labels": {

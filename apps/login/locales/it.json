@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "Bentornato!",
+    "title": "Accedi",
     "description": "Inserisci i tuoi dati di accesso.",
+    "subtitle": "Bentornato! Per favore accedi per continuare",
+    "heroTitle": "Autenticazione di cui puoi fidarti",
+    "heroDescription": "Costruito per team e aziende che danno priorità alla sicurezza e all'efficienza.",
     "register": "Registrati come nuovo utente",
     "submit": "Continua",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "Password",
       "description": "Inserisci la tua password.",
+      "subtitle": "Inserisci la tua password per continuare",
       "resetPassword": "Reimposta Password",
       "submit": "Continua",
       "labels": {

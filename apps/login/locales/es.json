@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "¡Bienvenido de nuevo!",
+    "title": "Iniciar sesión",
     "description": "Introduce tus datos de acceso.",
+    "subtitle": "¡Bienvenido de nuevo! Por favor inicia sesión para continuar",
+    "heroTitle": "Autenticación en la que puedes confiar",
+    "heroDescription": "Construido para equipos y empresas que priorizan la seguridad y la eficiencia.",
     "register": "Registrar nuevo usuario",
     "submit": "Continuar",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "Contraseña",
       "description": "Introduce tu contraseña.",
+      "subtitle": "Introduce tu contraseña para continuar",
       "resetPassword": "Restablecer contraseña",
       "submit": "Continuar",
       "labels": {

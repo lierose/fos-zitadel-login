@@ -23,8 +23,11 @@
     }
   },
   "loginname": {
-    "title": "Willkommen zurück!",
+    "title": "Anmelden",
     "description": "Geben Sie Ihre Anmeldedaten ein.",
+    "subtitle": "Willkommen zurück! Bitte melden Sie sich an um fortzufahren",
+    "heroTitle": "Authentifizierung, auf die Sie sich verlassen können",
+    "heroDescription": "Entwickelt für Teams und Unternehmen, die Sicherheit und Effizienz priorisieren.",
     "register": "Neuen Benutzer registrieren",
     "submit": "Weiter",
     "labels": {
@@ -41,6 +44,7 @@
     "verify": {
       "title": "Passwort",
       "description": "Geben Sie Ihr Passwort ein.",
+      "subtitle": "Geben Sie Ihr Passwort ein um fortzufahren",
       "resetPassword": "Passwort zurücksetzen",
       "submit": "Weiter",
       "labels": {

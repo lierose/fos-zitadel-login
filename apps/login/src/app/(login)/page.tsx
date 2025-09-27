@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
+import { getJWTFromCookies } from "@/lib/jwt";
 
-export default function Page() {
-  // automatically redirect to loginname
-  if (process.env.DEBUG !== "true") {
-    redirect("/loginname");
+export default async function Page() {
+  const jwtPayload = await getJWTFromCookies();
+
+  if (jwtPayload) {
+    redirect("/profile");
   }
+
+  redirect("/loginname");
 }
+
