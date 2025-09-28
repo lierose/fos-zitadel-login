@@ -11,7 +11,7 @@ export interface JWTPayload {
   iat: number;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-change-this-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_ALGORITHM = "HS256";
 
 export async function createJWT(payload: Omit<JWTPayload, "exp" | "iat">): Promise<string> {

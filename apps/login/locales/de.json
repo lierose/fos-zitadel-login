@@ -107,6 +107,11 @@
       "title": "Registrierung erfolgreich",
       "description": "Sie haben sich erfolgreich registriert!"
     },
+    "userNotFound": {
+      "title": "Benutzer nicht gefunden",
+      "description": "Dieser Benutzer existiert nicht in unserem System. Bitte wenden Sie sich an Ihren Administrator, um ein Konto zu erstellen.",
+      "backToLogin": "Zurück zur Anmeldung"
+    },
     "loginError": {
       "title": "Anmeldung fehlgeschlagen",
       "description": "Beim Anmelden ist ein Fehler aufgetreten."

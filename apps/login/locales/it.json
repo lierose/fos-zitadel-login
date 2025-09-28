@@ -107,6 +107,11 @@
       "title": "Registrazione riuscita",
       "description": "Registrazione effettuata con successo!"
     },
+    "userNotFound": {
+      "title": "Utente non trovato",
+      "description": "Questo utente non esiste nel nostro sistema. Contatta il tuo amministratore per creare un account.",
+      "backToLogin": "Torna al login"
+    },
     "loginError": {
       "title": "Accesso fallito",
       "description": "Si è verificato un errore durante il tentativo di accesso."

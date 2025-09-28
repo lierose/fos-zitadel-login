@@ -107,6 +107,11 @@
       "title": "Registro exitoso",
       "description": "¡Te has registrado con éxito!"
     },
+    "userNotFound": {
+      "title": "Usuario no encontrado",
+      "description": "Este usuario no existe en nuestro sistema. Por favor, contacta a tu administrador para crear una cuenta.",
+      "backToLogin": "Volver al inicio de sesión"
+    },
     "loginError": {
       "title": "Error de inicio de sesión",
       "description": "Ocurrió un error al intentar iniciar sesión."

@@ -107,6 +107,11 @@
       "title": "Rejestracja udana",
       "description": "Pomyślnie się zarejestrowałeś!"
     },
+    "userNotFound": {
+      "title": "Użytkownik nie znaleziony",
+      "description": "Ten użytkownik nie istnieje w naszym systemie. Skontaktuj się z administratorem, aby utworzyć konto.",
+      "backToLogin": "Powrót do logowania"
+    },
     "loginError": {
       "title": "Logowanie nieudane",
       "description": "Wystąpił błąd podczas próby logowania."

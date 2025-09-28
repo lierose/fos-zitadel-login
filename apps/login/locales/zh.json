@@ -107,6 +107,11 @@
       "title": "注册成功",
       "description": "您已成功注册！"
     },
+    "userNotFound": {
+      "title": "用户未找到",
+      "description": "此用户在我们的系统中不存在。请联系管理员创建账户。",
+      "backToLogin": "返回登录"
+    },
     "loginError": {
       "title": "登录失败",
       "description": "登录时发生错误。"

@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 
 interface SocialLoginButtonProps {
@@ -63,19 +65,40 @@ export function SocialLoginButton({ provider, id, requestId, organization, disab
     );
   }
 
+  const handleClick = async () => {
+    try {
+      const formData = new FormData();
+      formData.append("id", id);
+      formData.append("provider", providerValue);
+      formData.append("requestId", requestId || "");
+      formData.append("organization", organization || "");
+
+      const response = await fetch("/api/auth/idp/redirect", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.redirect) {
+          window.location.href = result.redirect;
+        }
+      } else {
+        console.error("Redirect failed:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error during redirect:", error);
+    }
+  };
+
   return (
-    <form action="/api/auth/idp/redirect" method="POST">
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="provider" value={providerValue} />
-      <input type="hidden" name="requestId" value={requestId || ""} />
-      <input type="hidden" name="organization" value={organization || ""} />
-      <button
-        type="submit"
-        className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 rounded-lg py-3 px-4 hover:bg-gray-50 transition-colors duration-200"
-      >
-        {icon}
-        <span className="text-gray-700 font-medium whitespace-nowrap">Continue with {name}</span>
-      </button>
-    </form>
+    <button
+      type="button"
+      onClick={handleClick}
+      className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 rounded-lg py-3 px-4 hover:bg-gray-50 transition-colors duration-200"
+    >
+      {icon}
+      <span className="text-gray-700 font-medium whitespace-nowrap">Continue with {name}</span>
+    </button>
   );
 }

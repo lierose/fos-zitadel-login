@@ -29,6 +29,7 @@ import {
   UpdateHumanUserRequestSchema,
 } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
 import { headers } from "next/headers";
+import { createJWTAndRedirectToProfile } from "@/lib/server/idp-login";
 
 const ORG_SUFFIX_REGEX = /(?<=@)(.+)/;
 
@@ -51,8 +52,7 @@ async function resolveOrganizationForUser({
       serviceUrl,
       domain: suffix,
     });
-    const orgToCheckForDiscovery =
-      orgs.result && orgs.result.length === 1 ? orgs.result[0].id : undefined;
+    const orgToCheckForDiscovery = orgs.result && orgs.result.length === 1 ? orgs.result[0].id : undefined;
 
     if (orgToCheckForDiscovery) {
       const orgLoginSettings = await getLoginSettings({
@@ -141,11 +141,34 @@ export default async function Page(props: {
       }
     }
 
-    return loginSuccess(
-      userId,
-      { idpIntentId: id, idpIntentToken: token },
-      requestId,
-      branding,
+    try {
+      await createJWTAndRedirectToProfile(userId, serviceUrl, idpInformation.userName);
+    } catch (error) {
+      return loginSuccess(userId, { idpIntentId: id, idpIntentToken: token }, requestId, branding);
+    }
+  }
+
+  // If no existing user found, show error message
+  if (!userId) {
+    return (
+      <DynamicTheme branding={branding}>
+        <div className="flex flex-col items-center space-y-4">
+          <h1>
+            <Translated i18nKey="userNotFound.title" namespace="idp" />
+          </h1>
+          <p className="ztdl-p">
+            <Translated i18nKey="userNotFound.description" namespace="idp" />
+          </p>
+          <div className="mt-4">
+            <a
+              href="/loginname"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Translated i18nKey="userNotFound.backToLogin" namespace="idp" />
+            </a>
+          </div>
+        </div>
+      </DynamicTheme>
     );
   }
 
@@ -174,167 +197,30 @@ export default async function Page(props: {
     if (!idpLink) {
       return linkingFailed(branding);
     } else {
-      return linkingSuccess(
-        userId,
-        { idpIntentId: id, idpIntentToken: token },
-        requestId,
-        branding,
-      );
+      return linkingSuccess(userId, { idpIntentId: id, idpIntentToken: token }, requestId, branding);
     }
   }
 
-  // search for potential user via username, then link
-  if (options?.autoLinking) {
-    let foundUser;
-    const email = addHumanUser?.email?.email;
-
-    if (options.autoLinking === AutoLinkingOption.EMAIL && email) {
-      foundUser = await listUsers({ serviceUrl, email }).then((response) => {
-        return response.result ? response.result[0] : null;
-      });
-    } else if (options.autoLinking === AutoLinkingOption.USERNAME) {
-      foundUser = await listUsers(
-        options.autoLinking === AutoLinkingOption.USERNAME
-          ? { serviceUrl, userName: idpInformation.userName }
-          : { serviceUrl, email },
-      ).then((response) => {
-        return response.result ? response.result[0] : null;
-      });
-    } else {
-      foundUser = await listUsers({
-        serviceUrl,
-        userName: idpInformation.userName,
-        email,
-      }).then((response) => {
-        return response.result ? response.result[0] : null;
-      });
-    }
-
-    if (foundUser) {
-      let idpLink;
-      try {
-        idpLink = await addIDPLink({
-          serviceUrl,
-          idp: {
-            id: idpInformation.idpId,
-            userId: idpInformation.userId,
-            userName: idpInformation.userName,
-          },
-          userId: foundUser.userId,
-        });
-      } catch (error) {
-        console.error(error);
-        return linkingFailed(branding);
-      }
-
-      if (!idpLink) {
-        return linkingFailed(branding);
-      } else {
-        return linkingSuccess(
-          foundUser.userId,
-          { idpIntentId: id, idpIntentToken: token },
-          requestId,
-          branding,
-        );
-      }
-    }
-  }
-
-  let newUser;
-  // automatic creation of a user is allowed and data is complete
-  if (options?.isAutoCreation && addHumanUser) {
-    const orgToRegisterOn = await resolveOrganizationForUser({
-      organization,
-      addHumanUser,
-      serviceUrl,
-    });
-
-    let addHumanUserWithOrganization: AddHumanUserRequest;
-    if (orgToRegisterOn) {
-      const organizationSchema = create(OrganizationSchema, {
-        org: { case: "orgId", value: orgToRegisterOn },
-      });
-
-      addHumanUserWithOrganization = create(AddHumanUserRequestSchema, {
-        ...addHumanUser,
-        organization: organizationSchema,
-      });
-    } else {
-      addHumanUserWithOrganization = create(
-        AddHumanUserRequestSchema,
-        addHumanUser,
-      );
-    }
-
-    try {
-      newUser = await addHuman({
-        serviceUrl,
-        request: addHumanUserWithOrganization,
-      });
-    } catch (error: unknown) {
-      console.error(
-        "An error occurred while creating the user:",
-        error,
-        addHumanUser,
-      );
-      return loginFailed(
-        branding,
-        (error as ConnectError).message
-          ? (error as ConnectError).message
-          : "Could not create user",
-      );
-    }
-  } else if (options?.isCreationAllowed) {
-    // if no user was found, we will create a new user manually / redirect to the registration page
-    const orgToRegisterOn = await resolveOrganizationForUser({
-      organization,
-      addHumanUser,
-      serviceUrl,
-    });
-
-    if (orgToRegisterOn) {
-      branding = await getBrandingSettings({
-        serviceUrl,
-        organization: orgToRegisterOn,
-      });
-    }
-
-    if (!orgToRegisterOn) {
-      return loginFailed(branding, "No organization found for registration");
-    }
-
-    return completeIDP({
-      branding,
-      idpIntent: { idpIntentId: id, idpIntentToken: token },
-      addHumanUser,
-      organization: orgToRegisterOn,
-      requestId,
-      idpUserId: idpInformation?.userId,
-      idpId: idpInformation?.idpId,
-      idpUserName: idpInformation?.userName,
-    });
-  }
-
-  if (newUser) {
-    return (
-      <DynamicTheme branding={branding}>
-        <div className="flex flex-col items-center space-y-4">
-          <h1>
-            <Translated i18nKey="registerSuccess.title" namespace="idp" />
-          </h1>
-          <p className="ztdl-p">
-            <Translated i18nKey="registerSuccess.description" namespace="idp" />
-          </p>
-          <IdpSignin
-            userId={newUser.userId}
-            idpIntent={{ idpIntentId: id, idpIntentToken: token }}
-            requestId={requestId}
-          />
+  // If we reach here, no existing user was found and we don't allow creation
+  // Show user not found message
+  return (
+    <DynamicTheme branding={branding}>
+      <div className="flex flex-col items-center space-y-4">
+        <h1>
+          <Translated i18nKey="userNotFound.title" namespace="idp" />
+        </h1>
+        <p className="ztdl-p">
+          <Translated i18nKey="userNotFound.description" namespace="idp" />
+        </p>
+        <div className="mt-4">
+          <a
+            href="/loginname"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Translated i18nKey="userNotFound.backToLogin" namespace="idp" />
+          </a>
         </div>
-      </DynamicTheme>
-    );
-  }
-
-  // return login failed if no linking or creation is allowed and no user was found
-  return loginFailed(branding, "No user found");
+      </div>
+    </DynamicTheme>
+  );
 }

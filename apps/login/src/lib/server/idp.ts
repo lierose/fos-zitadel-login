@@ -13,12 +13,9 @@ import { getServiceUrlFromHeaders } from "../service-url";
 import { checkEmailVerification } from "../verify-helper";
 import { createSessionForIdpAndUpdateCookie } from "./cookie";
 
-export type RedirectToIdpState = { error?: string | null } | undefined;
+export type RedirectToIdpState = { error?: string | null; redirect?: string } | undefined;
 
-export async function redirectToIdp(
-  prevState: RedirectToIdpState,
-  formData: FormData,
-): Promise<RedirectToIdpState> {
+export async function redirectToIdp(prevState: RedirectToIdpState, formData: FormData): Promise<RedirectToIdpState> {
   const _headers = await headers();
   const { serviceUrl } = getServiceUrlFromHeaders(_headers);
   const host = _headers.get("host");
@@ -33,6 +30,14 @@ export async function redirectToIdp(
   const organization = formData.get("organization") as string;
   const idpId = formData.get("id") as string;
   const provider = formData.get("provider") as string;
+
+  // Validate required fields
+  if (!idpId) {
+    return { error: "Identity provider ID is required" };
+  }
+  if (!provider) {
+    return { error: "Provider type is required" };
+  }
 
   if (linkOnly) params.set("link", "true");
   if (requestId) params.set("requestId", requestId);
@@ -57,7 +62,11 @@ export async function redirectToIdp(
   }
 
   if (response && "redirect" in response && response?.redirect) {
-    redirect(response.redirect);
+    return { redirect: response.redirect };
+  }
+
+  if (response && "error" in response) {
+    return { error: response.error };
   }
 
   return { error: "Unexpected response from IDP flow" };
@@ -74,20 +83,24 @@ export type StartIDPFlowCommand = {
 async function startIDPFlow(command: StartIDPFlowCommand) {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-  const url = await startIdentityProviderFlow({
-    serviceUrl: command.serviceUrl,
-    idpId: command.idpId,
-    urls: {
-      successUrl: `${command.host.includes("localhost") ? "http://" : "https://"}${command.host}${basePath}${command.successUrl}`,
-      failureUrl: `${command.host.includes("localhost") ? "http://" : "https://"}${command.host}${basePath}${command.failureUrl}`,
-    },
-  });
+  try {
+    const url = await startIdentityProviderFlow({
+      serviceUrl: command.serviceUrl,
+      idpId: command.idpId,
+      urls: {
+        successUrl: `${command.host.includes("localhost") ? "http://" : "https://"}${command.host}${basePath}${command.successUrl}`,
+        failureUrl: `${command.host.includes("localhost") ? "http://" : "https://"}${command.host}${basePath}${command.failureUrl}`,
+      },
+    });
 
-  if (!url) {
-    return { error: "Could not start IDP flow" };
+    if (!url) {
+      return { error: "Could not start IDP flow - no URL returned" };
+    }
+
+    return { redirect: url };
+  } catch (error) {
+    return { error: `Could not start IDP flow: ${error instanceof Error ? error.message : String(error)}` };
   }
-
-  return { redirect: url };
 }
 
 type CreateNewSessionCommand = {
