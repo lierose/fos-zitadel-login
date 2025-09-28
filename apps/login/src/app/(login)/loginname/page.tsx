@@ -111,7 +111,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
                 </div>
               </div>
 
-              <div className="flex flex-row gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {/* Social Login Buttons */}
                 {identityProviders?.map((idp, index) => {
                   const { id, type } = idp;

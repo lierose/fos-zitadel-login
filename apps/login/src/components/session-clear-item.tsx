@@ -65,9 +65,7 @@ export function SessionClearItem({
 
       <div className="flex flex-col items-start overflow-hidden">
         <span className="">{session.factors?.user?.displayName}</span>
-        <span className="text-ellipsis text-xs opacity-80">
-          {session.factors?.user?.loginName}
-        </span>
+        <span className="text-ellipsis text-xs opacity-80">{session.factors?.user?.loginName}</span>
         {valid ? (
           <span className="text-ellipsis text-xs opacity-80">
             {verifiedAt && (
@@ -81,9 +79,7 @@ export function SessionClearItem({
         ) : (
           verifiedAt && (
             <span className="text-ellipsis text-xs opacity-80">
-              expired{" "}
-              {session.expirationDate &&
-                moment(timestampDate(session.expirationDate)).fromNow()}
+              expired {session.expirationDate && moment(timestampDate(session.expirationDate)).fromNow()}
             </span>
           )
         )}
@@ -91,12 +87,15 @@ export function SessionClearItem({
 
       <span className="flex-grow"></span>
       <div className="relative flex flex-row items-center">
-        <div className="mr-6 flex hidden items-center justify-center rounded-full bg-[#ff0000]/10 px-2 py-[2px] text-xs text-warn-light-500 transition-all group-hover:block dark:bg-[#ff0000]/10 dark:text-warn-dark-500">
+        <div className="mr-6  items-center justify-center rounded-full bg-[#ff0000]/10 px-2 py-[2px] text-xs text-warn-light-500 transition-all group-hover:block dark:bg-[#ff0000]/10 dark:text-warn-dark-500">
           <Translated i18nKey="clear" namespace="logout" />
         </div>
 
         {valid ? (
-          <div className="absolute right-0 mx-2 h-2 w-2 transform rounded-full bg-green-500 transition-all"></div>
+          <div
+            className="absolute right-0 mx-2 h-2 w-2 transform rounded-full transition-all"
+            style={{ backgroundColor: "#559775" }}
+          ></div>
         ) : (
           <div className="absolute right-0 mx-2 h-2 w-2 transform rounded-full bg-red-500 transition-all"></div>
         )}

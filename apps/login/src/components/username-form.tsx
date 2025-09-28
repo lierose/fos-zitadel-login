@@ -5,10 +5,7 @@ import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Alert } from "./alert";
-import { BackButton } from "./back-button";
-import { Button, ButtonVariants } from "./button";
-import { TextInput } from "./input";
+import { Notification, useNotification } from "./notification";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
 import { useTranslations } from "next-intl";
@@ -27,15 +24,7 @@ type Props = {
   allowRegister: boolean;
 };
 
-export function UsernameForm({
-  loginName,
-  requestId,
-  organization,
-  suffix,
-  loginSettings,
-  submit,
-  allowRegister,
-}: Props) {
+export function UsernameForm({ loginName, requestId, organization, suffix, loginSettings, submit, allowRegister }: Props) {
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onBlur",
     defaultValues: {
@@ -48,7 +37,7 @@ export function UsernameForm({
   const router = useRouter();
 
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
+  const { notifications, addNotification, removeNotification } = useNotification();
 
   async function submitLoginName(values: Inputs, organization?: string) {
     setLoading(true);
@@ -60,7 +49,7 @@ export function UsernameForm({
       suffix,
     })
       .catch(() => {
-        setError("An internal error occurred");
+        addNotification("An internal error occurred", "error");
         return;
       })
       .finally(() => {
@@ -72,7 +61,7 @@ export function UsernameForm({
     }
 
     if (res && "error" in res && res.error) {
-      setError(res.error);
+      addNotification(res.error, "error");
       return;
     }
 
@@ -87,10 +76,7 @@ export function UsernameForm({
   }, []);
 
   let inputLabel = t("labels.loginname");
-  if (
-    loginSettings?.disableLoginWithEmail &&
-    loginSettings?.disableLoginWithPhone
-  ) {
+  if (loginSettings?.disableLoginWithEmail && loginSettings?.disableLoginWithPhone) {
     inputLabel = t("labels.username");
   } else if (loginSettings?.disableLoginWithEmail) {
     inputLabel = t("labels.usernameOrPhoneNumber");
@@ -107,7 +93,7 @@ export function UsernameForm({
           autoComplete="username"
           placeholder="your@email.com"
           {...register("loginName", { required: t("required.loginName") })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0.5 focus:ring-[#559775] focus:border-[#559775] transition-colors"
           data-testid="username-text-input"
         />
         {suffix && <span className="text-sm text-gray-500">@{suffix}</span>}
@@ -117,23 +103,28 @@ export function UsernameForm({
         type="submit"
         onClick={handleSubmit((e) => submitLoginName(e, organization))}
         disabled={loading || !formState.isValid}
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        className="w-full text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+        style={{ backgroundColor: "#559775" }}
         data-testid="submit-button"
       >
         {loading && <Spinner className="mr-2 h-5 w-5" />}
         Login
       </button>
 
-      {error && (
-        <div className="py-4" data-testid="error">
-          <Alert>{error}</Alert>
-        </div>
-      )}
+      {notifications.map((notification) => (
+        <Notification
+          key={notification.id}
+          message={notification.message}
+          type={notification.type}
+          onClose={() => removeNotification(notification.id)}
+        />
+      ))}
 
       {allowRegister && (
         <div className="text-center">
           <button
-            className="text-sm text-gray-600 hover:text-green-600 transition-colors"
+            className="text-sm text-gray-600 transition-colors"
+            style={{ color: "#559775" }}
             onClick={() => {
               const registerParams = new URLSearchParams();
               if (organization) {

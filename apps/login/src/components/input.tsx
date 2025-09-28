@@ -56,11 +56,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   ) => {
     return (
       <label className="relative flex flex-col text-12px text-input-light-label dark:text-input-dark-label">
-        <span
-          className={`mb-1 leading-3 ${
-            error ? "text-warn-light-500 dark:text-warn-dark-500" : ""
-          }`}
-        >
+        <span className={`mb-1 leading-3 ${error ? "text-warn-light-500 dark:text-warn-dark-500" : ""}`}>
           {label} {required && "*"}
         </span>
         <input
@@ -88,7 +84,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
         </div>
 
         {success && (
-          <div className="text-md mt-1 flex flex-row items-center text-green-500">
+          <div className="text-md mt-1 flex flex-row items-center" style={{ color: "#559775" }}>
             <CheckCircleIcon className="h-4 w-4" />
             <span className="ml-1">{success}</span>
           </div>

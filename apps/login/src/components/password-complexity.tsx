@@ -19,15 +19,12 @@ const check = (
     viewBox="0 0 24 24"
     strokeWidth={1.5}
     stroke="currentColor"
-    className="las la-check mr-2 h-6 w-6 text-lg text-green-500 dark:text-green-500"
+    className="las la-check mr-2 h-6 w-6 text-lg dark:text-green-500"
+    style={{ color: "#559775" }}
     role="img"
   >
     <title>Matches</title>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M4.5 12.75l6 6 9-13.5"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
 const cross = (

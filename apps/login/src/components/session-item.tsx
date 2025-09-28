@@ -118,9 +118,7 @@ export function SessionItem({
 
           <div className="flex flex-col items-start overflow-hidden">
             <span className="">{session.factors?.user?.displayName}</span>
-            <span className="text-ellipsis text-xs opacity-80">
-              {session.factors?.user?.loginName}
-            </span>
+            <span className="text-ellipsis text-xs opacity-80">{session.factors?.user?.loginName}</span>
             {valid ? (
               <span className="text-ellipsis text-xs opacity-80">
                 <Translated i18nKey="verified" namespace="accounts" />{" "}
@@ -130,8 +128,7 @@ export function SessionItem({
               verifiedAt && (
                 <span className="text-ellipsis text-xs opacity-80">
                   <Translated i18nKey="expired" namespace="accounts" />{" "}
-                  {session.expirationDate &&
-                    moment(timestampDate(session.expirationDate)).fromNow()}
+                  {session.expirationDate && moment(timestampDate(session.expirationDate)).fromNow()}
                 </span>
               )
             )}
@@ -140,7 +137,10 @@ export function SessionItem({
           <span className="flex-grow"></span>
           <div className="relative flex flex-row items-center">
             {valid ? (
-              <div className="absolute right-6 mx-2 h-2 w-2 transform rounded-full bg-green-500 transition-all group-hover:right-6 sm:right-0"></div>
+              <div
+                className="absolute right-6 mx-2 h-2 w-2 transform rounded-full transition-all group-hover:right-6 sm:right-0"
+                style={{ backgroundColor: "#559775" }}
+              ></div>
             ) : (
               <div className="absolute right-6 mx-2 h-2 w-2 transform rounded-full bg-red-500 transition-all group-hover:right-6 sm:right-0"></div>
             )}
