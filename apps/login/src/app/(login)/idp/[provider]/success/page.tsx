@@ -1,4 +1,5 @@
 import { DynamicTheme } from "@/components/dynamic-theme";
+import { IdpJwtHandler } from "@/components/idp-jwt-handler";
 import { IdpSignin } from "@/components/idp-signin";
 import { completeIDP } from "@/components/idps/pages/complete-idp";
 import { linkingFailed } from "@/components/idps/pages/linking-failed";
@@ -15,6 +16,7 @@ import {
   getIDPByID,
   getLoginSettings,
   getOrgsByDomain,
+  getUserByID,
   listUsers,
   retrieveIDPIntent,
   updateHuman,
@@ -141,15 +143,56 @@ export default async function Page(props: {
       }
     }
 
-    try {
-      await createJWTAndRedirectToProfile(userId, serviceUrl, idpInformation.userName);
-    } catch (error) {
-      return loginSuccess(userId, { idpIntentId: id, idpIntentToken: token }, requestId, branding);
-    }
+    return (
+      <DynamicTheme branding={branding}>
+        <div className="flex flex-col items-center space-y-4">
+          <h1>Completing Login...</h1>
+          <p className="ztdl-p">Please wait while we complete your authentication.</p>
+          <IdpJwtHandler userId={userId} serviceUrl={serviceUrl} idpUserName={idpInformation.userName} />
+        </div>
+      </DynamicTheme>
+    );
   }
 
-  // If no existing user found, show error message
   if (!userId) {
+    if (idpInformation?.userName && options?.isLinkingAllowed) {
+      try {
+        const users = await listUsers({
+          serviceUrl,
+          loginName: idpInformation.userName,
+          organizationId: organization,
+        });
+
+        if (users.result.length === 1 && users.result[0].userId) {
+          const foundUserId = users.result[0].userId;
+
+          const idpLink = await addIDPLink({
+            serviceUrl,
+            idp: {
+              id: idpInformation.idpId,
+              userId: idpInformation.userId,
+              userName: idpInformation.userName,
+            },
+            userId: foundUserId,
+          });
+
+          if (idpLink) {
+            return (
+              <DynamicTheme branding={branding}>
+                <div className="flex flex-col items-center space-y-4">
+                  <h1>Completing Login...</h1>
+                  <p className="ztdl-p">Please wait while we complete your authentication.</p>
+                  <IdpJwtHandler userId={foundUserId} serviceUrl={serviceUrl} idpUserName={idpInformation.userName} />
+                </div>
+              </DynamicTheme>
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error during user linking:", error);
+      }
+    }
+
     return (
       <DynamicTheme branding={branding}>
         <div className="flex flex-col items-center space-y-4">

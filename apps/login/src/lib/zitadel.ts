@@ -1205,15 +1205,15 @@ export async function retrieveIDPIntent({
   id: string;
   token: string;
 }) {
-  const userService: Client<typeof UserService> = await createServiceForHost(
-    UserService,
-    serviceUrl,
-  );
+  try {
+    const userService: Client<typeof UserService> = await createServiceForHost(UserService, serviceUrl);
 
-  return userService.retrieveIdentityProviderIntent(
-    { idpIntentId: id, idpIntentToken: token },
-    {},
-  );
+    const result = await userService.retrieveIdentityProviderIntent({ idpIntentId: id, idpIntentToken: token }, {});
+
+    return result;
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function getIDPByID({
