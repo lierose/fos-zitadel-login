@@ -12,7 +12,7 @@ import { Metadata } from "next";
 
 import { headers } from "next/headers";
 import Image from "next/image";
-import logo from "../../../../../public/logo1.png";
+// import logo from "../../../../../public/logo1.png";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Reset Password" };
@@ -69,7 +69,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
           <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200"></div>
 
           <div className="flex items-center space-x-3 p-5">
-            <Image src={logo} alt="Logo" className="h-18 w-18 object-contain" />
+            <Image src={"./logo1.png"} alt="Logo" className="h-18 w-18 object-contain" width={55} height={55} />
           </div>
 
           <div className="space-y-6 text-left p-12">

@@ -8,7 +8,7 @@ import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
-import logo from "../../../../public/logo1.png";
+// import logo from "../../../../public/logo1.png";
 import Image from "next/image";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -62,7 +62,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
           <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200"></div>
 
           <div className="flex items-center space-x-3 p-5">
-            <Image src={logo} alt="Logo" className="h-18 w-18 object-contain" />
+            <Image src={"./logo1.png"} alt="Logo" className="h-18 w-18 object-contain" width={55} height={55} />
           </div>
 
           <div className="space-y-6 text-left p-12">

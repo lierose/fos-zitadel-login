@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  zitadel-login:
+    build: .
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - ZITADEL_API_URL=https://local-rufgdq.us1.zitadel.cloud
+      - ZITADEL_SERVICE_USER_TOKEN=XxaAf26SlA1ZNQz92Y7TY5jI6nH9DRnhdG7lEgeFszek9AHJx2gQtUMp4DLGv0Yfn4ZcnDA
+      - ZITADEL_CLIENT_ID=339857123926120529
+      - ZITADEL_CALLBACK_URL=http://localhost:3000/api/auth/callback/zitadel
+      - JWT_SECRET=WOpq4lA+Ycn0JCtm34c22T1QvYZgQbnmZqyCKSrblstzRvOAOAWeiHdzEXP7xMAL8+nOJ/HRmMxyirl6LWEFrQ==
+    volumes:
+      - ./.env:/.env-file/.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "/runtime/healthcheck.js", "http://localhost:3000/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

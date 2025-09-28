@@ -8,9 +8,9 @@ RUN corepack enable && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare pnpm@1
     rm -rf /var/cache/apk/*
 WORKDIR /app
 COPY pnpm-lock.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm fetch --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm fetch
 COPY package.json ./
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install
 COPY . .
 RUN pnpm build:login:standalone
 
@@ -29,9 +29,9 @@ COPY --chown=nextjs:nodejs ./scripts/ ./
 COPY --chown=nextjs:nodejs --from=build-out / ./
 USER nextjs
 ENV HOSTNAME="0.0.0.0" \
-    NEXT_PUBLIC_BASE_PATH="/ui/v2/login" \
+    NEXT_PUBLIC_BASE_PATH="" \
     PORT=3000
 # TODO: Check healthy, not ready
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ["/bin/sh", "-c", "node /runtime/healthcheck.js http://localhost:${PORT}/ui/v2/login/healthy"]
+    CMD ["/bin/sh", "-c", "node /runtime/healthcheck.js http://localhost:${PORT}/healthy"]
 ENTRYPOINT ["/runtime/entrypoint.sh"]
