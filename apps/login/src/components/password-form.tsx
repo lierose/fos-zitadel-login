@@ -69,51 +69,51 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
   async function resetPasswordAndContinue() {
     setLoading(true);
 
-    const response = await resetPassword({
-      loginName,
-      organization,
-      requestId,
-    })
-      .catch(() => {
-        addNotification("Could not reset password", "error");
-        return;
-      })
-      .finally(() => {
-        setLoading(false);
+    try {
+      const response = await resetPassword({
+        loginName,
+        organization,
+        requestId,
       });
 
-    if (response && "error" in response) {
-      addNotification(response.error, "error");
-      return;
+      if (response && "error" in response) {
+        addNotification(response.error, "error");
+        return;
+      }
+
+      addNotification("Password reset link sent. Please check your email.", "success");
+
+      const params = new URLSearchParams({
+        loginName: loginName,
+      });
+
+      if (organization) {
+        params.append("organization", organization);
+      }
+
+      if (requestId) {
+        params.append("requestId", requestId);
+      }
+
+      return router.push("/password/set?" + params);
+    } catch (error) {
+      console.error("Reset password error:", error);
+      addNotification("Could not reset password. Please try again.", "error");
+    } finally {
+      setLoading(false);
     }
-
-    addNotification("Password was reset. Please check your email.", "success");
-
-    const params = new URLSearchParams({
-      loginName: loginName,
-    });
-
-    if (organization) {
-      params.append("organization", organization);
-    }
-
-    if (requestId) {
-      params.append("requestId", requestId);
-    }
-
-    return router.push("/password/set?" + params);
   }
 
   return (
     <form className="w-full space-y-6">
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Password</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
         <input
           type="password"
           autoComplete="password"
           placeholder="Enter your password"
           {...register("password", { required: t("verify.required.password") })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0.5 focus:ring-[#559775] focus:border-[#559775] transition-colors"
+          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-0.5 focus:ring-[#559775] focus:border-[#559775] transition-colors text-gray-900 dark:text-white"
           data-testid="password-text-input"
         />
         {loginName && <input type="hidden" name="loginName" autoComplete="username" value={loginName} />}
@@ -122,7 +122,7 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
         {!loginSettings?.hidePasswordReset && (
           <div className="text-right">
             <button
-              className="text-sm text-gray-600 transition-colors hover:text-[#559775] "
+              className="text-sm text-gray-600 dark:text-gray-300 transition-colors hover:text-[#559775] "
               onClick={() => resetPasswordAndContinue()}
               type="button"
               disabled={loading}

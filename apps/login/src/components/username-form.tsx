@@ -87,16 +87,16 @@ export function UsernameForm({ loginName, requestId, organization, suffix, login
   return (
     <form className="w-full space-y-6">
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Email</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
         <input
           type="text"
           autoComplete="username"
           placeholder="your@email.com"
           {...register("loginName", { required: t("required.loginName") })}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0.5 focus:ring-[#559775] focus:border-[#559775] transition-colors"
+          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-0.5 focus:ring-[#559775] focus:border-[#559775] transition-colors text-gray-900 dark:text-white"
           data-testid="username-text-input"
         />
-        {suffix && <span className="text-sm text-gray-500">@{suffix}</span>}
+        {suffix && <span className="text-sm text-gray-500 dark:text-gray-400">@{suffix}</span>}
       </div>
 
       <button

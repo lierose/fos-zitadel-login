@@ -44,34 +44,53 @@ type ResetPasswordCommand = {
 };
 
 export async function resetPassword(command: ResetPasswordCommand) {
-  const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
-  const host = _headers.get("host");
+  try {
+    const _headers = await headers();
+    const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+    const host = _headers.get("host");
 
-  if (!host || typeof host !== "string") {
-    throw new Error("No host found");
-  }
+    console.log("Reset password request:", { loginName: command.loginName, organization: command.organization });
 
-  const users = await listUsers({
-    serviceUrl,
-    loginName: command.loginName,
-    organizationId: command.organization,
-  });
+    if (!host || typeof host !== "string") {
+      throw new Error("No host found");
+    }
 
-  if (!users.details || users.details.totalResult !== BigInt(1) || !users.result[0].userId) {
-    return { error: "Could not send Password Reset Link" };
-  }
-  const userId = users.result[0].userId;
+    const users = await listUsers({
+      serviceUrl,
+      loginName: command.loginName,
+      organizationId: command.organization,
+    });
 
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    console.log("User lookup result:", {
+      totalResults: users.details?.totalResult?.toString(),
+      found: users.result.length,
+      userId: users.result[0]?.userId,
+    });
 
-  return passwordReset({
-    serviceUrl,
-    userId,
-    urlTemplate:
+    if (!users.details || users.details.totalResult !== BigInt(1) || !users.result[0].userId) {
+      return { error: "User not found. Please check your email address." };
+    }
+    const userId = users.result[0].userId;
+
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    const urlTemplate =
       `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/password/set?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}` +
-      (command.requestId ? `&requestId=${command.requestId}` : ""),
-  });
+      (command.requestId ? `&requestId=${command.requestId}` : "");
+
+    console.log("Password reset URL template:", urlTemplate);
+
+    const result = await passwordReset({
+      serviceUrl,
+      userId,
+      urlTemplate,
+    });
+
+    console.log("Password reset result:", result);
+    return result;
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return { error: "Failed to send password reset link. Please try again." };
+  }
 }
 
 export type UpdateSessionCommand = {

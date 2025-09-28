@@ -1265,30 +1265,37 @@ export async function passwordReset({
   userId: string;
   urlTemplate?: string;
 }) {
-  let medium = create(SendPasswordResetLinkSchema, {
-    notificationType: NotificationType.Email,
-  });
+  try {
+    let medium = create(SendPasswordResetLinkSchema, {
+      notificationType: NotificationType.Email,
+    });
 
-  medium = {
-    ...medium,
-    urlTemplate,
-  };
+    medium = {
+      ...medium,
+      urlTemplate,
+    };
 
-  const userService: Client<typeof UserService> = await createServiceForHost(
-    UserService,
-    serviceUrl,
-  );
+    console.log("Password reset medium:", { userId, urlTemplate, notificationType: NotificationType.Email });
 
-  return userService.passwordReset(
-    {
-      userId,
-      medium: {
-        case: "sendLink",
-        value: medium,
+    const userService: Client<typeof UserService> = await createServiceForHost(UserService, serviceUrl);
+
+    const result = await userService.passwordReset(
+      {
+        userId,
+        medium: {
+          case: "sendLink",
+          value: medium,
+        },
       },
-    },
-    {},
-  );
+      {},
+    );
+
+    console.log("Password reset API result:", result);
+    return result;
+  } catch (error) {
+    console.error("Password reset API error:", error);
+    throw error;
+  }
 }
 
 export async function setUserPassword({

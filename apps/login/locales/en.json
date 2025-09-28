@@ -11,6 +11,9 @@
     "verified": "verified",
     "expired": "expired"
   },
+  "profile": {
+    "title": "Profile"
+  },
   "logout": {
     "title": "Logout",
     "description": "Click an account to end the session",

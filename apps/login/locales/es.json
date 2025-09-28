@@ -11,6 +11,9 @@
     "verified": "verificado",
     "expired": "expirado"
   },
+  "profile": {
+    "title": "Perfil"
+  },
   "logout": {
     "title": "Cerrar sesión",
     "description": "Selecciona la cuenta que deseas eliminar",

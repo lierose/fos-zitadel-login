@@ -1,5 +1,6 @@
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SocialLoginButton } from "@/components/social-login-button";
+import { Theme } from "@/components/theme";
 import { Translated } from "@/components/translated";
 import { UsernameForm } from "@/components/username-form";
 import { getServiceUrlFromHeaders } from "@/lib/service-url";
@@ -56,23 +57,24 @@ export default async function Page(props: { searchParams: Promise<Record<string 
   });
 
   return (
-    <div className="relative w-full max-w-6xl bg-white rounded-md shadow-md overflow-hidden">
+    <div className="relative w-full max-w-6xl bg-white dark:bg-gray-800 rounded-md shadow-md overflow-hidden">
       <div className="flex min-h-[550px]">
         <div className="hidden lg:flex lg:w-1/2  flex-col justify-between relative">
-          <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200"></div>
+          <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200 dark:bg-gray-600"></div>
 
           <div className="flex items-center space-x-3 p-5">
             <Image src={"./logo1.png"} alt="Logo" className="h-18 w-18 object-contain" width={55} height={55} />
           </div>
 
           <div className="space-y-6 text-left p-12">
-            <h1 className="text-3xl font-medium text-gray-900 leading-tight text-left">
+            <h1 className="text-3xl font-medium text-gray-900 dark:text-white leading-tight text-left">
               <Translated i18nKey="heroTitle" namespace="loginname" />
             </h1>
-            <p className="text-md text-gray-600 leading-relaxed text-left max-w-xs">
+            <p className="text-md text-gray-600 dark:text-gray-300 leading-relaxed text-left max-w-xs">
               <Translated i18nKey="heroDescription" namespace="loginname" />
             </p>
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <Theme />
               <LanguageSwitcher />
             </div>
           </div>
@@ -81,10 +83,10 @@ export default async function Page(props: { searchParams: Promise<Record<string 
         <div className="w-full lg:w-1/2 p-12 flex flex-col justify-end">
           <div className="space-y-9">
             <div>
-              <h2 className="text-3xl font-medium text-gray-900 mb-2">
+              <h2 className="text-3xl font-medium text-gray-900 dark:text-white mb-2">
                 <Translated i18nKey="title" namespace="loginname" />
               </h2>
-              <p className="text-gray-600 text-xs">
+              <p className="text-gray-600 dark:text-gray-300 text-xs">
                 <Translated i18nKey="subtitle" namespace="loginname" />
               </p>
             </div>

@@ -11,6 +11,9 @@
     "verified": "verifiziert",
     "expired": "abgelaufen"
   },
+  "profile": {
+    "title": "Profil"
+  },
   "logout": {
     "title": "Logout",
     "description": "Wählen Sie den Account aus, das Sie entfernen möchten",

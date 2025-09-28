@@ -11,6 +11,9 @@
     "verified": "verificato",
     "expired": "scaduto"
   },
+  "profile": {
+    "title": "Profilo"
+  },
   "logout": {
     "title": "Esci",
     "description": "Seleziona l'account che desideri uscire",

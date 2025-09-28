@@ -13,6 +13,7 @@ import { headers } from "next/headers";
 // import logo from "../../../../public/logo1.png";
 import Image from "next/image";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { Theme } from "@/components/theme";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("password");
@@ -58,21 +59,24 @@ export default async function Page(props: { searchParams: Promise<Record<string 
   });
 
   return (
-    <div className="relative w-full max-w-6xl bg-white rounded-md shadow-md overflow-hidden">
+    <div className="relative w-full max-w-6xl bg-white dark:bg-gray-800 rounded-md shadow-md overflow-hidden">
       <div className="flex min-h-[550px]">
         <div className="hidden lg:flex lg:w-1/2 flex-col justify-between relative">
-          <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200"></div>
+          <div className="absolute right-0 top-12 bottom-12 w-px bg-gray-200 dark:bg-gray-600"></div>
 
           <div className="flex items-center space-x-3 p-5">
             <Image src={"./logo1.png"} alt="Logo" className="h-18 w-18 object-contain" width={55} height={55} />
           </div>
 
           <div className="space-y-6 text-left p-12">
-            <h1 className="text-3xl font-medium text-gray-900 leading-tight text-left">Secure Password Verification</h1>
-            <p className="text-md text-gray-600 leading-relaxed text-left max-w-xs">
+            <h1 className="text-3xl font-medium text-gray-900 dark:text-white leading-tight text-left">
+              Secure Password Verification
+            </h1>
+            <p className="text-md text-gray-600 dark:text-gray-300 leading-relaxed text-left max-w-xs">
               Complete your authentication with your secure password to access your account.
             </p>
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <Theme />
               <LanguageSwitcher />
             </div>
           </div>
@@ -84,11 +88,11 @@ export default async function Page(props: { searchParams: Promise<Record<string 
             <BackIconButton />
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h2 className="text-3xl font-medium text-gray-900">
+                <h2 className="text-3xl font-medium text-gray-900 dark:text-white">
                   {sessionFactors?.factors?.user?.displayName ?? <Translated i18nKey="verify.title" namespace="password" />}
                 </h2>
               </div>
-              <p className="text-gray-600 text-xs">
+              <p className="text-gray-600 dark:text-gray-300 text-xs">
                 <Translated i18nKey="verify.subtitle" namespace="password" />
               </p>
             </div>

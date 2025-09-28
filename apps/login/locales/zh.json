@@ -11,6 +11,9 @@
     "verified": "已验证",
     "expired": "已过期"
   },
+  "profile": {
+    "title": "个人资料"
+  },
   "logout": {
     "title": "注销",
     "description": "选择您想注销的账户",

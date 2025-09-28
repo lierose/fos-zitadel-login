@@ -22,8 +22,12 @@ export function LogoutButton() {
   };
 
   return (
-    <Button variant={ButtonVariants.Secondary} onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white">
+    <button
+      onClick={handleLogout}
+      className="w-full text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+      style={{ backgroundColor: "#dc2626" }}
+    >
       Logout
-    </Button>
+    </button>
   );
 }
