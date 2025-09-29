@@ -82,7 +82,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
           </div>
         </div>
 
-        <div className="w-full lg:w-1/2 p-12 flex flex-col justify-end">
+        <div className="w-full lg:w-1/2 p-12 flex flex-col">
           <div className="space-y-9">
             {/* Header */}
             <BackIconButton />

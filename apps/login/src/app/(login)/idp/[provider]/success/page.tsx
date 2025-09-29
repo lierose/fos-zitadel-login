@@ -157,14 +157,34 @@ export default async function Page(props: {
   if (!userId) {
     if (idpInformation?.userName && options?.isLinkingAllowed) {
       try {
-        const users = await listUsers({
+   
+        let users = await listUsers({
           serviceUrl,
-          loginName: idpInformation.userName,
-          organizationId: organization,
+          email: idpInformation.userName,
         });
 
-        if (users.result.length === 1 && users.result[0].userId) {
-          const foundUserId = users.result[0].userId;
+        if ((!users.result || users.result.length === 0) && idpInformation.userName) {
+          users = await listUsers({
+            serviceUrl,
+            userName: idpInformation.userName,
+          });
+        }
+
+        if ((!users.result || users.result.length === 0) && idpInformation.userName) {
+          users = await listUsers({
+            serviceUrl,
+            loginName: idpInformation.userName,
+          });
+        }
+
+        let candidateUserId = users.result?.[0]?.userId as string | undefined;
+        if (users.result && users.result.length > 1 && organization) {
+          const inOrg = users.result.find((u: any) => u?.details?.resourceOwner === organization);
+          if (inOrg?.userId) candidateUserId = inOrg.userId as string;
+        }
+
+        if (candidateUserId) {
+          const foundUserId = candidateUserId;
 
           const idpLink = await addIDPLink({
             serviceUrl,
