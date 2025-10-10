@@ -1,7 +1,8 @@
 {
   "common": {
     "back": "Back",
-    "title": "Login with Zitadel"
+    "title": "Login with Zitadel",
+    "or": "OR"
   },
   "accounts": {
     "title": "Accounts",

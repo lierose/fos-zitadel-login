@@ -9,8 +9,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
-import { BackButton } from "./back-button";
-import { Button, ButtonVariants } from "./button";
+import { Button, ButtonVariants, ButtonColors } from "./button";
 import { TextInput } from "./input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
@@ -26,16 +25,11 @@ type Props = {
   requestId?: string;
 };
 
-export function PasswordForm({
-  loginSettings,
-  loginName,
-  organization,
-  requestId,
-}: Props) {
+export function PasswordForm({ loginSettings, loginName, organization, requestId }: Props) {
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onBlur",
   });
-  
+
   const t = useTranslations("password");
 
   const [info, setInfo] = useState<string>("");
@@ -126,25 +120,20 @@ export function PasswordForm({
           data-testid="password-text-input"
         />
         {!loginSettings?.hidePasswordReset && (
-          <button
-            className="text-sm transition-all hover:text-primary-light-500 dark:hover:text-primary-dark-500"
-            onClick={() => resetPasswordAndContinue()}
-            type="button"
-            disabled={loading}
-            data-testid="reset-button"
-          >
-            <Translated i18nKey="verify.resetPassword" namespace="password" />
-          </button>
+          <div className="mt-2 flex w-full justify-end">
+            <button
+              className="text-sm text-gray-600 transition-colors hover:text-warn-light-500 dark:text-gray-300 dark:hover:text-warn-dark-500"
+              onClick={() => resetPasswordAndContinue()}
+              type="button"
+              disabled={loading}
+              data-testid="reset-button"
+            >
+              <Translated i18nKey="verify.resetPassword" namespace="password" />
+            </button>
+          </div>
         )}
 
-        {loginName && (
-          <input
-            type="hidden"
-            name="loginName"
-            autoComplete="username"
-            value={loginName}
-          />
-        )}
+        {loginName && <input type="hidden" name="loginName" autoComplete="username" value={loginName} />}
       </div>
 
       {info && (
@@ -159,19 +148,17 @@ export function PasswordForm({
         </div>
       )}
 
-      <div className="mt-8 flex w-full flex-row items-center">
-        <BackButton data-testid="back-button" />
-        <span className="flex-grow"></span>
+      <div className="mt-8 w-full">
         <Button
           type="submit"
-          className="self-end"
+          className="h-12 w-full justify-center"
           variant={ButtonVariants.Primary}
+          color={ButtonColors.Warn}
           disabled={loading || !formState.isValid}
           onClick={handleSubmit(submitPassword)}
           data-testid="submit-button"
         >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}{" "}
-          <Translated i18nKey="verify.submit" namespace="password" />
+          {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="verify.submit" namespace="password" />
         </Button>
       </div>
     </form>

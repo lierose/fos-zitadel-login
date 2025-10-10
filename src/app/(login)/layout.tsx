@@ -2,7 +2,7 @@ import "@/styles/globals.scss";
 
 import { LanguageProvider } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { Skeleton } from "@/components/skeleton";
+import { Spinner } from "@/components/spinner";
 import { Theme } from "@/components/theme";
 import { ThemeProvider } from "@/components/theme-provider";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -31,29 +31,22 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Suspense
               fallback={
                 <div
-                  className={`relative flex min-h-screen flex-col justify-center bg-background-light-600 dark:bg-background-dark-600`}
+                  className={`relative flex min-h-screen flex-col justify-center bg-background-light-400 dark:bg-background-dark-600`}
                 >
-                  <div className="relative mx-auto w-full max-w-[440px] py-8">
-                    <Skeleton>
-                      <div className="h-40"></div>
-                    </Skeleton>
-                    <div className="flex flex-row items-center justify-end space-x-4 py-4">
-                      <Theme />
-                    </div>
+                  <div className="relative mx-auto flex w-full max-w-[1100px] flex-col items-center py-16">
+                    <Spinner className="h-10 w-10" />
                   </div>
                 </div>
               }
             >
               <LanguageProvider>
-                <div
-                  className={`relative flex min-h-screen flex-col justify-center bg-background-light-600 dark:bg-background-dark-600`}
-                >
-                  <div className="relative mx-auto w-full max-w-[440px] py-8">
-                    {children}
-                    <div className="flex flex-row items-center justify-end space-x-4 py-4">
-                      <LanguageSwitcher />
-                      <Theme />
-                    </div>
+                <div className="relative flex h-screen flex-col overflow-hidden bg-background-light-500 dark:bg-background-dark-700">
+                  <div className="flex flex-row items-center justify-end space-x-4 p-4">
+                    <LanguageSwitcher />
+                    <Theme />
+                  </div>
+                  <div className="flex flex-1 items-center justify-center">
+                    <div className="relative mx-auto w-full max-w-[1200px] px-4">{children}</div>
                   </div>
                 </div>
               </LanguageProvider>
