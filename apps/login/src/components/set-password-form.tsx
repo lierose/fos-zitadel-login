@@ -19,8 +19,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FieldValues, useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
-import { BackButton } from "./back-button";
-import { Button, ButtonVariants } from "./button";
+import { Button, ButtonVariants, ButtonColors } from "./button";
 import { TextInput } from "./input";
 import { PasswordComplexity } from "./password-complexity";
 import { Spinner } from "./spinner";
@@ -148,20 +147,12 @@ export function SetPasswordForm({
         setLoading(false);
       });
 
-    if (
-      passwordResponse &&
-      "error" in passwordResponse &&
-      passwordResponse.error
-    ) {
+    if (passwordResponse && "error" in passwordResponse && passwordResponse.error) {
       setError(passwordResponse.error);
       return;
     }
 
-    if (
-      passwordResponse &&
-      "redirect" in passwordResponse &&
-      passwordResponse.redirect
-    ) {
+    if (passwordResponse && "redirect" in passwordResponse && passwordResponse.redirect) {
       return router.push(passwordResponse.redirect);
     }
 
@@ -173,9 +164,7 @@ export function SetPasswordForm({
   const watchPassword = watch("password", "");
   const watchConfirmPassword = watch("confirmPassword", "");
 
-  const hasMinLength =
-    passwordComplexitySettings &&
-    watchPassword?.length >= passwordComplexitySettings.minLength;
+  const hasMinLength = passwordComplexitySettings && watchPassword?.length >= passwordComplexitySettings.minLength;
   const hasSymbol = symbolValidator(watchPassword);
   const hasNumber = numberValidator(watchPassword);
   const hasUppercase = upperCaseValidator(watchPassword);
@@ -266,22 +255,17 @@ export function SetPasswordForm({
 
       {error && <Alert>{error}</Alert>}
 
-      <div className="mt-8 flex w-full flex-row items-center justify-between">
-        <BackButton data-testid="back-button" />
+      <div className="mt-8 w-full">
         <Button
           type="submit"
+          className="h-11 w-full justify-center"
           variant={ButtonVariants.Primary}
-          disabled={
-            loading ||
-            !policyIsValid ||
-            !formState.isValid ||
-            watchPassword !== watchConfirmPassword
-          }
+          color={ButtonColors.Warn}
+          disabled={loading || !policyIsValid || !formState.isValid || watchPassword !== watchConfirmPassword}
           onClick={handleSubmit(submitPassword)}
           data-testid="submit-button"
         >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}{" "}
-          <Translated i18nKey="set.submit" namespace="password" />
+          {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="set.submit" namespace="password" />
         </Button>
       </div>
     </form>

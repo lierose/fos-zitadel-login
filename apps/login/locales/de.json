@@ -1,7 +1,8 @@
 {
   "common": {
     "back": "Zurück",
-    "title": "Anmelden mit Zitadel"
+    "title": "Anmelden mit Zitadel",
+    "or": "ODER"
   },
   "accounts": {
     "title": "Konten",

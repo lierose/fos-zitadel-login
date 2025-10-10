@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "./alert";
-import { BackButton } from "./back-button";
-import { Button, ButtonVariants } from "./button";
+import { Button, ButtonVariants, ButtonColors } from "./button";
 import { TextInput } from "./input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
@@ -27,15 +26,7 @@ type Props = {
   allowRegister: boolean;
 };
 
-export function UsernameForm({
-  loginName,
-  requestId,
-  organization,
-  suffix,
-  loginSettings,
-  submit,
-  allowRegister,
-}: Props) {
+export function UsernameForm({ loginName, requestId, organization, suffix, loginSettings, submit, allowRegister }: Props) {
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onBlur",
     defaultValues: {
@@ -72,7 +63,12 @@ export function UsernameForm({
     }
 
     if (res && "error" in res && res.error) {
-      setError(res.error);
+      const notAuthorizedMsg = "You are not authorized to login, please contact your IT administrator";
+      if (typeof res.error === "string" && res.error.includes("User not found in the system")) {
+        setError(notAuthorizedMsg);
+      } else {
+        setError(res.error);
+      }
       return;
     }
 
@@ -86,24 +82,14 @@ export function UsernameForm({
     }
   }, []);
 
-  let inputLabel = t("labels.loginname");
-  if (
-    loginSettings?.disableLoginWithEmail &&
-    loginSettings?.disableLoginWithPhone
-  ) {
-    inputLabel = t("labels.username");
-  } else if (loginSettings?.disableLoginWithEmail) {
-    inputLabel = t("labels.usernameOrPhoneNumber");
-  } else if (loginSettings?.disableLoginWithPhone) {
-    inputLabel = t("labels.usernameOrEmail");
-  }
+  let inputLabel = "Email";
 
   return (
     <form className="w-full">
       <div className="">
         <TextInput
-          type="text"
-          autoComplete="username"
+          type="email"
+          autoComplete="email"
           {...register("loginName", { required: t("required.loginName") })}
           label={inputLabel}
           data-testid="username-text-input"
@@ -111,7 +97,7 @@ export function UsernameForm({
         />
         {allowRegister && (
           <button
-            className="text-sm transition-all hover:text-primary-light-500 dark:hover:text-primary-dark-500"
+            className="text-sm transition-all hover:text-primary-light-500 dark:hover:text-warn-dark-500"
             onClick={() => {
               const registerParams = new URLSearchParams();
               if (organization) {
@@ -137,14 +123,13 @@ export function UsernameForm({
           <Alert>{error}</Alert>
         </div>
       )}
-      <div className="mt-4 flex w-full flex-row items-center">
-        <BackButton data-testid="back-button" />
-        <span className="flex-grow"></span>
+      <div className="mt-4 w-full">
         <Button
           data-testid="submit-button"
           type="submit"
-          className="self-end"
+          className="h-11 w-full justify-center"
           variant={ButtonVariants.Primary}
+          color={ButtonColors.Warn}
           disabled={loading || !formState.isValid}
           onClick={handleSubmit((e) => submitLoginName(e, organization))}
         >
