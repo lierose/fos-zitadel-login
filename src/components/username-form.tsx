@@ -85,11 +85,12 @@ export function UsernameForm({ loginName, requestId, organization, suffix, login
   let inputLabel = "Email";
 
   return (
-    <form className="w-full">
+    <form className="w-full" autoComplete="on">
       <div className="">
         <TextInput
           type="email"
-          autoComplete="email"
+          autoComplete="username"
+          inputMode="email"
           {...register("loginName", { required: t("required.loginName") })}
           label={inputLabel}
           data-testid="username-text-input"

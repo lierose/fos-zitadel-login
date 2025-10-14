@@ -56,11 +56,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   ) => {
     return (
       <label className="relative flex flex-col text-12px text-input-light-label dark:text-input-dark-label">
-        <span
-          className={`mb-1 leading-3 ${
-            error ? "text-warn-light-500 dark:text-warn-dark-500" : ""
-          }`}
-        >
+        <span className={`mb-1 leading-3 ${error ? "text-warn-light-500 dark:text-warn-dark-500" : ""}`}>
           {label} {required && "*"}
         </span>
         <input
@@ -71,7 +67,8 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           required={required}
           disabled={disabled}
           placeholder={placeholder}
-          autoComplete={props.autoComplete ?? "off"}
+          // Allow browser suggestions by default; components can override via props.autoComplete
+          autoComplete={props.autoComplete ?? "on"}
           onChange={(e) => onChange && onChange(e)}
           onBlur={(e) => onBlur && onBlur(e)}
           {...props}
