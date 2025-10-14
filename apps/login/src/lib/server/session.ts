@@ -73,6 +73,20 @@ export async function continueWithSession({ requestId, ...session }: Session & {
   const _headers = await headers();
   const { serviceUrl } = getServiceUrlFromHeaders(_headers);
 
+
+  if (session.id) {
+    try {
+      const cookie = await getSessionCookieById({ sessionId: session.id });
+      const nextTs = `${Date.now()}`;
+      if (cookie) {
+        const { updateSessionCookie } = await import("../cookies");
+        await updateSessionCookie({ id: session.id, session: { ...cookie, changeTs: nextTs } });
+      }
+    } catch (error) {
+      console.warn("[Server] continueWithSession: failed to mark session active", error);
+    }
+  }
+
   const loginSettings = await getLoginSettings({
     serviceUrl,
     organization: session.factors?.user?.organizationId,
