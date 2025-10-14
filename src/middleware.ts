@@ -39,6 +39,13 @@ async function loadSecuritySettings(
 }
 
 export async function middleware(request: NextRequest) {
+  // Root redirect guard: decide / → /signedin or /loginname before any proxy logic
+  if (request.nextUrl.pathname === "/") {
+    const hasSessions = request.cookies.get("sessions")?.value;
+    const target = hasSessions ? "/signedin" : "/loginname";
+    return NextResponse.redirect(new URL(target, request.url));
+  }
+
   // Add the original URL as a header to all requests
   const requestHeaders = new Headers(request.headers);
 
@@ -49,24 +56,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Only run the rest of the logic for the original matcher paths
-  const proxyPaths = [
-    "/.well-known/",
-    "/oauth/",
-    "/oidc/",
-    "/idps/callback/",
-    "/saml/",
-  ];
+  const proxyPaths = ["/.well-known/", "/oauth/", "/oidc/", "/idps/callback/", "/saml/"];
 
-  const isMatched = proxyPaths.some((prefix) =>
-    request.nextUrl.pathname.startsWith(prefix),
-  );
+  const isMatched = proxyPaths.some((prefix) => request.nextUrl.pathname.startsWith(prefix));
 
   // escape proxy if the environment is setup for multitenancy
-  if (
-    !isMatched ||
-    !process.env.ZITADEL_API_URL ||
-    !process.env.ZITADEL_SERVICE_USER_TOKEN
-  ) {
+  if (!isMatched || !process.env.ZITADEL_API_URL || !process.env.ZITADEL_SERVICE_USER_TOKEN) {
     // For all other routes, just add the header and continue
     return NextResponse.next({
       request: { headers: requestHeaders },
@@ -76,9 +71,7 @@ export async function middleware(request: NextRequest) {
   const _headers = await headers();
   const { serviceUrl } = getServiceUrlFromHeaders(_headers);
 
-  const instanceHost = `${serviceUrl}`
-    .replace("https://", "")
-    .replace("http://", "");
+  const instanceHost = `${serviceUrl}`.replace("https://", "").replace("http://", "");
 
   // Add additional headers as before
   requestHeaders.set("x-zitadel-public-host", `${request.nextUrl.host}`);
