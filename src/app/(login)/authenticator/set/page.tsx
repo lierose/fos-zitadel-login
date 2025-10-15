@@ -1,16 +1,15 @@
 import { Alert } from "@/components/alert";
 import { BackButton } from "@/components/back-button";
-import { ChooseAuthenticatorToSetup } from "@/components/choose-authenticator-to-setup";
+import { ChooseSecondFactorToSetup } from "@/components/choose-second-factor-to-setup";
 import { DynamicTheme } from "@/components/dynamic-theme";
-import { SignInWithIdp } from "@/components/sign-in-with-idp";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
+import { LogoLink } from "@/components/logo-link";
 import { getSessionCookieById } from "@/lib/cookies";
 import { getServiceUrlFromHeaders } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
 import { checkUserVerification } from "@/lib/verify-helper";
 import {
-  getActiveIdentityProviders,
   getBrandingSettings,
   getLoginSettings,
   getSession,
@@ -18,7 +17,6 @@ import {
   listAuthenticationMethodTypes,
 } from "@/lib/zitadel";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
-// import { getLocale } from "next-intl/server";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
@@ -26,12 +24,10 @@ import { redirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("authenticator");
-  return { title: t('title')};
+  return { title: t("title") };
 }
 
-export default async function Page(props: {
-  searchParams: Promise<Record<string | number | symbol, string | undefined>>;
-}) {
+export default async function Page(props: { searchParams: Promise<Record<string | number | symbol, string | undefined>> }) {
   const searchParams = await props.searchParams;
 
   const { loginName, requestId, organization, sessionId } = searchParams;
@@ -43,11 +39,7 @@ export default async function Page(props: {
     ? await loadSessionById(sessionId, organization)
     : await loadSessionByLoginname(loginName, organization);
 
-  async function getAuthMethodsAndUser(
-    serviceUrl: string,
-
-    session?: Session,
-  ) {
+  async function getAuthMethodsAndUser(serviceUrl: string, session?: Session) {
     const userId = session?.factors?.user?.id;
 
     if (!userId) {
@@ -59,8 +51,7 @@ export default async function Page(props: {
       userId,
     }).then((methods) => {
       return getUserByID({ serviceUrl, userId }).then((user) => {
-        const humanUser =
-          user.user?.type.case === "human" ? user.user?.type.value : undefined;
+        const humanUser = user.user?.type.case === "human" ? user.user?.type.value : undefined;
 
         return {
           factors: session?.factors,
@@ -73,10 +64,7 @@ export default async function Page(props: {
     });
   }
 
-  async function loadSessionByLoginname(
-    loginName?: string,
-    organization?: string,
-  ) {
+  async function loadSessionByLoginname(loginName?: string, organization?: string) {
     return loadMostRecentSession({
       serviceUrl,
       sessionParams: {
@@ -99,11 +87,7 @@ export default async function Page(props: {
     });
   }
 
-  if (
-    !sessionWithData ||
-    !sessionWithData.factors ||
-    !sessionWithData.factors.user
-  ) {
+  if (!sessionWithData || !sessionWithData.factors || !sessionWithData.factors.user) {
     return (
       <Alert>
         <Translated i18nKey="unknownContext" namespace="error" />
@@ -121,97 +105,65 @@ export default async function Page(props: {
     organization: sessionWithData.factors.user?.organizationId,
   });
 
-  // check if user was verified recently
-  const isUserVerified = await checkUserVerification(
-    sessionWithData.factors.user?.id,
-  );
-
-  if (!isUserVerified) {
-    const params = new URLSearchParams({
-      loginName: sessionWithData.factors.user.loginName as string,
-      invite: "true",
-      send: "true", // set this to true to request a new code immediately
-    });
-
-    if (requestId) {
-      params.append("requestId", requestId);
+  if (process.env.EMAIL_VERIFICATION === "true") {
+    const isUserVerified = await checkUserVerification(sessionWithData.factors.user?.id);
+    if (!isUserVerified) {
+      const params = new URLSearchParams({
+        loginName: sessionWithData.factors.user.loginName as string,
+        invite: "true",
+        send: "true",
+      });
+      if (requestId) params.append("requestId", requestId);
+      if (organization || sessionWithData.factors.user.organizationId) {
+        params.append("organization", organization ?? (sessionWithData.factors.user.organizationId as string));
+      }
+      redirect(`/verify?` + params);
     }
-
-    if (organization || sessionWithData.factors.user.organizationId) {
-      params.append(
-        "organization",
-        organization ?? (sessionWithData.factors.user.organizationId as string),
-      );
-    }
-
-    redirect(`/verify?` + params);
   }
 
-  const identityProviders = await getActiveIdentityProviders({
-    serviceUrl,
-    orgId: sessionWithData.factors?.user?.organizationId,
-    linking_allowed: true,
-  }).then((resp) => {
-    return resp.identityProviders;
-  });
-
-  const params = new URLSearchParams({
-    initial: "true", // defines that a code is not required and is therefore not shown in the UI
-  });
-
-  if (sessionWithData.factors?.user?.loginName) {
-    params.set("loginName", sessionWithData.factors?.user?.loginName);
-  }
-
-  if (sessionWithData.factors?.user?.organizationId) {
+  const params = new URLSearchParams({ initial: "true" });
+  if (sessionWithData.factors?.user?.loginName) params.set("loginName", sessionWithData.factors?.user?.loginName);
+  if (sessionWithData.factors?.user?.organizationId)
     params.set("organization", sessionWithData.factors?.user?.organizationId);
-  }
-
-  if (requestId) {
-    params.set("requestId", requestId);
-  }
+  if (requestId) params.set("requestId", requestId);
 
   return (
-    <DynamicTheme branding={branding}>
-      <div className="flex flex-col items-center space-y-4">
-        <h1>
+    <div className="flex w-full justify-center py-8">
+      <div className="w-full max-w-[720px] rounded-2xl bg-white p-8 text-center shadow-md ring-1 ring-black/5 dark:bg-neutral-900 dark:text-neutral-100 dark:shadow-xl dark:ring-white/10">
+        <div className="mb-4 flex w-full justify-center">
+          <LogoLink />
+        </div>
+
+        <h1 className="mb-2 text-2xl font-semibold">
           <Translated i18nKey="title" namespace="authenticator" />
         </h1>
-
-        <p className="ztdl-p">
+        <p className="ztdl-p mb-3 text-sm text-gray-600 dark:text-gray-300">
           <Translated i18nKey="description" namespace="authenticator" />
         </p>
 
-        <UserAvatar
-          loginName={sessionWithData.factors?.user?.loginName}
-          displayName={sessionWithData.factors?.user?.displayName}
-          showDropdown
-          searchParams={searchParams}
-        ></UserAvatar>
+        <div className="mb-4 flex justify-center">
+          <UserAvatar
+            loginName={sessionWithData.factors?.user?.loginName}
+            displayName={sessionWithData.factors?.user?.displayName}
+            showDropdown
+            searchParams={searchParams}
+          ></UserAvatar>
+        </div>
 
         {loginSettings && (
-          <ChooseAuthenticatorToSetup
-            authMethods={sessionWithData.authMethods}
+          <ChooseSecondFactorToSetup
+            userId={sessionWithData.factors.user.id as string}
+            loginName={sessionWithData.factors.user.loginName as string}
+            sessionId={sessionId as string}
+            requestId={requestId as string}
+            organization={sessionWithData.factors.user.organizationId as string}
             loginSettings={loginSettings}
-            params={params}
-          ></ChooseAuthenticatorToSetup>
-        )}
-
-        {loginSettings?.allowExternalIdp && !!identityProviders.length && (
-          <>
-            <div className="flex flex-col py-3">
-              <p className="ztdl-p text-center">
-                <Translated i18nKey="linkWithIDP" namespace="authenticator" />
-              </p>
-            </div>
-
-            <SignInWithIdp
-              identityProviders={identityProviders}
-              requestId={requestId}
-              organization={sessionWithData.factors?.user?.organizationId}
-              linkOnly={true} // tell the callback function to just link the IDP and not login, to get an error when user is already available
-            ></SignInWithIdp>
-          </>
+            userMethods={sessionWithData.authMethods}
+            checkAfter={false}
+            phoneVerified={sessionWithData.phoneVerified}
+            emailVerified={sessionWithData.emailVerified}
+            force={false}
+          />
         )}
 
         <div className="mt-8 flex w-full flex-row items-center">
@@ -219,6 +171,6 @@ export default async function Page(props: {
           <span className="flex-grow"></span>
         </div>
       </div>
-    </DynamicTheme>
+    </div>
   );
 }
