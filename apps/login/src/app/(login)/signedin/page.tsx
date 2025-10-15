@@ -14,7 +14,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { LogoLink } from "@/components/logo-link";
 import { AppTiles } from "@/components/app-tiles";
-import { MfaToggle } from "@/components/mfa-toggle";
+import { EnableMfaButton } from "@/components/enable-mfa-button";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("signedin");
@@ -136,18 +136,15 @@ export default async function Page(props: { searchParams: Promise<any> }) {
           </Alert>
         )}
 
-        <div className="mx-auto mt-8 flex max-w-[520px] items-center justify-end gap-4">
-          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <span>Enable MFA</span>
-            <MfaToggle href={`/authenticator/set?${mfaParams.toString()}`} />
-          </div>
+        <div className="mx-auto mt-8 flex max-w-[520px] items-center justify-end gap-2">
           {loginSettings?.defaultRedirectUri && (
             <Link href={loginSettings?.defaultRedirectUri}>
-              <Button type="submit" className="h-10" variant={ButtonVariants.Primary}>
+              <Button type="submit" className="h-8 px-4 text-xs" variant={ButtonVariants.Primary}>
                 <Translated i18nKey="continue" namespace="signedin" />
               </Button>
             </Link>
           )}
+          <EnableMfaButton href={`/authenticator/set?${mfaParams.toString()}`} />
         </div>
       </div>
     </div>
