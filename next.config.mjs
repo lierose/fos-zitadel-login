@@ -34,16 +34,16 @@ const secureHeaders = [
 ];
 
 const nextConfig = {
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH,
+  basePath: "",
   output: process.env.NEXT_OUTPUT_MODE || undefined,
   reactStrictMode: true,
   experimental: {
     dynamicIO: true,
     // Add React 19 compatibility optimizations
-    optimizePackageImports: ['@radix-ui/react-tooltip', '@heroicons/react'],
+    optimizePackageImports: ["@radix-ui/react-tooltip", "@heroicons/react"],
   },
   images: {
-    unoptimized: true
+    unoptimized: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
