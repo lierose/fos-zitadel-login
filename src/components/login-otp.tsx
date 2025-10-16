@@ -10,9 +10,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
-import { BackButton } from "./back-button";
 import { useTranslations } from "next-intl";
-import { Button, ButtonVariants } from "./button";
+import { Button, ButtonVariants, ButtonColors } from "./button";
 import { TextInput } from "./input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
@@ -33,16 +32,7 @@ type Inputs = {
   code: string;
 };
 
-export function LoginOTP({
-  host,
-  loginName,
-  sessionId,
-  requestId,
-  organization,
-  method,
-  code,
-  loginSettings,
-}: Props) {
+export function LoginOTP({ host, loginName, sessionId, requestId, organization, method, code, loginSettings }: Props) {
   const t = useTranslations("otp");
 
   const [error, setError] = useState<string>("");
@@ -54,9 +44,7 @@ export function LoginOTP({
 
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onBlur",
-    defaultValues: {
-      code: code ? code : "",
-    },
+    defaultValues: { code: code ? code : "" },
   });
 
   useEffect(() => {
@@ -97,19 +85,11 @@ export function LoginOTP({
     }
 
     if (method === "sms") {
-      challenges = create(RequestChallengesSchema, {
-        otpSms: {},
-      });
+      challenges = create(RequestChallengesSchema, { otpSms: {} });
     }
 
     setLoading(true);
-    const response = await updateSession({
-      loginName,
-      sessionId,
-      organization,
-      challenges,
-      requestId,
-    })
+    const response = await updateSession({ loginName, sessionId, organization, challenges, requestId })
       .catch(() => {
         setError("Could not request OTP challenge");
         return;
@@ -129,44 +109,12 @@ export function LoginOTP({
   async function submitCode(values: Inputs, organization?: string) {
     setLoading(true);
 
-    let body: any = {
-      code: values.code,
-      method,
-    };
-
-    if (organization) {
-      body.organization = organization;
-    }
-
-    if (requestId) {
-      body.requestId = requestId;
-    }
-
     let checks;
+    if (method === "sms") checks = create(ChecksSchema, { otpSms: { code: values.code } });
+    if (method === "email") checks = create(ChecksSchema, { otpEmail: { code: values.code } });
+    if (method === "time-based") checks = create(ChecksSchema, { totp: { code: values.code } });
 
-    if (method === "sms") {
-      checks = create(ChecksSchema, {
-        otpSms: { code: values.code },
-      });
-    }
-    if (method === "email") {
-      checks = create(ChecksSchema, {
-        otpEmail: { code: values.code },
-      });
-    }
-    if (method === "time-based") {
-      checks = create(ChecksSchema, {
-        totp: { code: values.code },
-      });
-    }
-
-    const response = await updateSession({
-      loginName,
-      sessionId,
-      organization,
-      checks,
-      requestId,
-    })
+    const response = await updateSession({ loginName, sessionId, organization, checks, requestId })
       .catch(() => {
         setError("Could not verify OTP code");
         return;
@@ -187,7 +135,6 @@ export function LoginOTP({
     return submitCode(values, organization).then(async (response) => {
       if (response && "sessionId" in response) {
         setLoading(true);
-        // Wait for 2 seconds to avoid eventual consistency issues with an OTP code being verified in the /login endpoint
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         const url =
@@ -202,18 +149,13 @@ export function LoginOTP({
               )
             : response.factors?.user
               ? await getNextUrl(
-                  {
-                    loginName: response.factors.user.loginName,
-                    organization: response.factors?.user?.organizationId,
-                  },
+                  { loginName: response.factors.user.loginName, organization: response.factors?.user?.organizationId },
                   loginSettings?.defaultRedirectUri,
                 )
               : null;
 
         setLoading(false);
-        if (url) {
-          router.push(url);
-        }
+        if (url) router.push(url);
       }
     });
   }
@@ -249,6 +191,7 @@ export function LoginOTP({
           </div>
         </Alert>
       )}
+
       <div className="mt-4">
         <TextInput
           type="text"
@@ -265,21 +208,19 @@ export function LoginOTP({
         </div>
       )}
 
-      <div className="mt-8 flex w-full flex-row items-center">
-        <BackButton data-testid="back-button" />
-        <span className="flex-grow"></span>
+      <div className="mt-8 w-full">
         <Button
           type="submit"
-          className="self-end"
+          className="h-11 w-full justify-center"
           variant={ButtonVariants.Primary}
+          color={ButtonColors.Warn}
           disabled={loading || !formState.isValid}
           onClick={handleSubmit((e) => {
             setCodeAndContinue(e, organization);
           })}
           data-testid="submit-button"
         >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}{" "}
-          <Translated i18nKey="verify.submit" namespace="otp" />
+          {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="verify.submit" namespace="otp" />
         </Button>
       </div>
     </form>

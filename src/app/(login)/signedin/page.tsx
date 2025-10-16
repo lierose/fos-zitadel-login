@@ -15,6 +15,7 @@ import Link from "next/link";
 import { LogoLink } from "@/components/logo-link";
 import { AppTiles } from "@/components/app-tiles";
 import { EnableMfaButton } from "@/components/enable-mfa-button";
+import { LogOut } from "lucide-react";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("signedin");
@@ -145,6 +146,14 @@ export default async function Page(props: { searchParams: Promise<any> }) {
             </Link>
           )}
           <EnableMfaButton href={`/authenticator/set?${mfaParams.toString()}`} />
+          <Link
+            aria-label="Logout"
+            href="/logout"
+            className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500 text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+            title="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </div>
