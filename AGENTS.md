@@ -1,25 +1,21 @@
-# ZITADEL Login App Guide for AI Agents
+# FOS ZITADEL Login App Guide
 
 ## Context
-The **Login App** (`apps/login`) provides the user interface for authentication flows (Login, Register, MFA, etc.). It is built with Next.js and React.
 
-## Key Technology
-- **Framework**: Next.js (React).
-- **Styling**: TailwindCSS, configured via `apps/login/tailwind.config.mjs`.
-- **Data Fetching**: Primarily server-side interaction with ZITADEL APIs via `@zitadel/client` or direct gRPC calls where applicable.
-- **Language**: TypeScript.
+This repository is a standalone fork of ZITADEL's `apps/login`. Authentication logic follows upstream ZITADEL; FOS-specific presentation belongs in shared UI components such as `src/components/dynamic-theme.tsx`.
 
-## Architecture & Conventions
-- **Routing**: Uses the Next.js App Router (routes are defined under `src/app/`).
-- **Composability**: Components should be small and reusable.
-- **State**: Critical authentication state is often managed via URL parameters (Auth Requests) and cookies/sessions.
-- **Scope Rule**: For shared API typings and client behavior, also read `packages/AGENTS.md` and `proto/AGENTS.md`.
+## Technology and conventions
 
-## Verified Nx Targets
-- **Dev Server**: `pnpm nx run @zitadel/login:dev`
-- **Build**: `pnpm nx run @zitadel/login:build`
-- **Lint**: `pnpm nx run @zitadel/login:lint`
-- **Test (all)**: `pnpm nx run @zitadel/login:test`
-- **Test (unit)**: `pnpm nx run @zitadel/login:test-unit`
-- **Test (integration)**: `pnpm nx run @zitadel/login:test-integration`
-- **Pack (Docker)**: `pnpm nx run @zitadel/login:pack` — builds a local Docker image `zitadel/zitadel-login:local`. Requires Docker daemon.
+- Next.js App Router and React with TypeScript.
+- Tailwind CSS, configured in `tailwind.config.mjs`.
+- ZITADEL APIs through the release-matched generated clients in `vendor/`.
+- Preserve upstream session, OIDC, SAML, IdP, enrollment, and security behavior when resolving sync conflicts.
+
+## Verification
+
+- Development: `pnpm dev`
+- Lint: `pnpm lint-check-next` and `pnpm lint-check-prettier`
+- Type check: `pnpm typecheck`
+- Unit tests: `pnpm test-unit`
+- Production build: `pnpm build`
+- Container: `docker build -t fos-zitadel-login .`

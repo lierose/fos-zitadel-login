@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, ButtonVariants, ButtonColors } from "./button";
+import { Button, ButtonColors, ButtonVariants } from "./button";
 
 export type AppTile = {
   name: string;
@@ -33,7 +33,7 @@ export function AppTiles({ apps }: { apps: AppTile[] }) {
               onClick={() => setSelectedIndex(idx)}
               aria-pressed={isSelected}
               className={
-                "relative group flex h-28 items-center justify-center rounded-md border-2 px-3 transition-all hover:shadow-md " +
+                "group relative flex h-28 items-center justify-center rounded-md border-2 px-3 transition-all hover:shadow-md " +
                 (isSelected
                   ? "border-red-500 bg-white text-red-600 dark:border-red-500 dark:bg-neutral-900 dark:text-red-400"
                   : "border-gray-300 bg-white text-gray-700 hover:border-red-400 hover:text-red-600 dark:border-white/20 dark:bg-neutral-900 dark:text-gray-300 hover:dark:border-red-500 hover:dark:text-red-400")
@@ -41,12 +41,10 @@ export function AppTiles({ apps }: { apps: AppTile[] }) {
             >
               <div className="flex flex-col items-start text-left">
                 <span className="text-xl font-semibold">{app.name}</span>
-                {app.description && (
-                  <span className="mt-1 text-xs text-gray-500 dark:text-gray-400">{app.description}</span>
-                )}
+                {app.description && <span className="mt-1 text-xs text-gray-500 dark:text-gray-400">{app.description}</span>}
               </div>
               {isSelected && (
-                <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white dark:bg-red-500">
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white dark:bg-red-500">
                   ✓
                 </span>
               )}

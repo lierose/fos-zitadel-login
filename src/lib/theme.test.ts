@@ -62,16 +62,16 @@ describe("Theme Configuration", () => {
       expect(DEFAULT_THEME).toEqual({
         roundness: "mid",
         componentRoundness: DEFAULT_COMPONENT_ROUNDNESS,
-        layout: "top-to-bottom",
-        appearance: "flat",
+        layout: "side-by-side",
+        appearance: "material",
         spacing: "regular",
       });
     });
 
     it("should have valid default values", () => {
       expect(DEFAULT_THEME.roundness).toBe("mid");
-      expect(DEFAULT_THEME.layout).toBe("top-to-bottom");
-      expect(DEFAULT_THEME.appearance).toBe("flat");
+      expect(DEFAULT_THEME.layout).toBe("side-by-side");
+      expect(DEFAULT_THEME.appearance).toBe("material");
       expect(DEFAULT_THEME.spacing).toBe("regular");
     });
   });

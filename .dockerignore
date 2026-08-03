@@ -1,0 +1,11 @@
+.git
+.github
+.next
+.pnpm-store
+node_modules
+acceptance
+dockerized
+screenshots
+*.log
+.env.local
+.env.test.local

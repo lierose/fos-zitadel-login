@@ -1,7 +1,7 @@
 custom-config.js
 .env*.local
 standalone
-tsconfig.tsbuildinfo
+*.tsbuildinfo
 cypress
 
 .DS_Store

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Spinner } from "./spinner";
@@ -24,7 +23,7 @@ export function LogoLink({ href = "/", width = 40, height = 40 }: Props) {
   return (
     <div className="relative">
       <button aria-label="Go to home" onClick={handleClick} className="rounded focus:outline-none">
-        <Image src="/fos-op-icon.svg" alt="Logo" width={width} height={height} />
+        <img src="/fos-op-icon.svg" alt="Logo" width={width} height={height} />
       </button>
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -34,5 +33,3 @@ export function LogoLink({ href = "/", width = 40, height = 40 }: Props) {
     </div>
   );
 }
-
-

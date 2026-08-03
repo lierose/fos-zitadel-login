@@ -1,6 +1,8 @@
 import { Alert, AlertType } from "@/components/alert";
+import { AppTiles } from "@/components/app-tiles";
 import { Button, ButtonVariants } from "@/components/button";
 import { DynamicTheme } from "@/components/dynamic-theme";
+import { EnableMfaButton } from "@/components/enable-mfa-button";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
 import { resolveRedirectUri } from "@/lib/client";
@@ -9,6 +11,7 @@ import { completeDeviceAuthorization } from "@/lib/server/device";
 import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
 import { getBrandingSettings, getLoginSettings, getSession, ServiceConfig } from "@/lib/zitadel";
+import { LogOut } from "lucide-react";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
@@ -91,6 +94,21 @@ export default async function Page(props: { searchParams: Promise<any> }) {
 
   const isSamePage = redirectUri?.startsWith("/signedin") ?? false;
 
+  const fosUrl = process.env.NEXT_PUBLIC_FOS_URL;
+  const app2Url = process.env.NEXT_PUBLIC_APP2_URL;
+  const apps = [
+    ...(fosUrl
+      ? [{ name: process.env.NEXT_PUBLIC_FOS_NAME || "FOS", url: fosUrl, description: "Main FOS application" }]
+      : []),
+    ...(app2Url ? [{ name: process.env.NEXT_PUBLIC_APP2_NAME || "App2", url: app2Url, description: "Secondary app" }] : []),
+  ];
+
+  const mfaParams = new URLSearchParams();
+  if (sessionId) mfaParams.set("sessionId", sessionId);
+  if (organization) mfaParams.set("organization", organization);
+  if (requestId) mfaParams.set("requestId", requestId);
+  if (loginName) mfaParams.set("loginName", loginName);
+
   return (
     <DynamicTheme branding={branding}>
       <div className="flex flex-col space-y-4">
@@ -110,23 +128,32 @@ export default async function Page(props: { searchParams: Promise<any> }) {
       </div>
 
       <div className="w-full">
+        <AppTiles apps={apps} />
+
         {requestId && requestId.startsWith("device_") && (
           <Alert type={AlertType.INFO}>
             You can now close this window and return to the device where you started the authorization process to continue.
           </Alert>
         )}
 
-        {redirectUri && !isSamePage && (
-          <div className="mt-8 flex w-full flex-row items-center">
-            <span className="flex-grow"></span>
-
+        <div className="mt-8 flex w-full flex-wrap items-center justify-end gap-2">
+          {redirectUri && !isSamePage && (
             <Link href={redirectUri}>
-              <Button type="submit" className="self-end" variant={ButtonVariants.Primary}>
+              <Button type="submit" className="h-8 px-4 text-xs" variant={ButtonVariants.Primary}>
                 <Translated i18nKey="continue" namespace="signedin" />
               </Button>
             </Link>
-          </div>
-        )}
+          )}
+          <EnableMfaButton href={`/authenticator/set?${mfaParams.toString()}`} />
+          <Link
+            aria-label="Logout"
+            href="/logout"
+            className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-500 text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+            title="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
     </DynamicTheme>
   );
