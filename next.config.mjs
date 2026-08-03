@@ -71,6 +71,24 @@ const nextConfig = {
   // },
   // Better error handling for production builds
   poweredByHeader: false,
+  async redirects() {
+    if (process.env.NEXT_PUBLIC_BASE_PATH) return [];
+
+    return [
+      {
+        source: "/ui/v2/login",
+        destination: "/",
+        permanent: false,
+        basePath: false,
+      },
+      {
+        source: "/ui/v2/login/:path*",
+        destination: "/:path*",
+        permanent: false,
+        basePath: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

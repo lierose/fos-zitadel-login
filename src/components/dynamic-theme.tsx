@@ -1,5 +1,6 @@
 "use client";
 
+import { publicAssetPath } from "@/lib/public-asset-path";
 import { useResponsiveLayout } from "@/lib/theme-hooks";
 import { BrandingSettings } from "@zitadel/proto/zitadel/settings/v2/branding_settings_pb";
 import React, { Children, ReactNode } from "react";
@@ -77,14 +78,14 @@ function FosIllustration({ side }: { side: "left" | "right" }) {
     <div className={`hidden flex-1 flex-col md:flex ${isLeft ? "items-end" : "items-start"}`}>
       <div className={`pointer-events-none flex h-[420px] w-full items-end ${isLeft ? "justify-end" : "justify-start"}`}>
         <img
-          src={isLeft ? "/firstimage.svg" : "/secondimage.svg"}
+          src={publicAssetPath(isLeft ? "/firstimage.svg" : "/secondimage.svg")}
           alt=""
           width={420}
           height={420}
           className="h-[320px] w-auto lg:h-[420px] dark:hidden"
         />
         <img
-          src={isLeft ? "/first-image-dark.svg" : "/second-image-dark.svg"}
+          src={publicAssetPath(isLeft ? "/first-image-dark.svg" : "/second-image-dark.svg")}
           alt=""
           width={420}
           height={420}

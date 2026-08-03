@@ -4,7 +4,7 @@ IMAGE ?= registry.liero.se/ifa-zitadel-login-v2
 TAG ?= latest
 PLATFORM ?= linux/amd64
 PLATFORMS ?= linux/amd64,linux/arm64
-BASE_PATH ?= /ui/v2/login
+BASE_PATH ?=
 SMOKE_PORT ?= 3100
 PNPM ?= npx --yes pnpm@10.28.2
 
@@ -84,9 +84,16 @@ smoke: image clean-smoke
 		base_path='$(BASE_PATH)'; \
 		curl --retry 15 --retry-all-errors --retry-delay 1 --fail --silent \
 			http://127.0.0.1:$(SMOKE_PORT)$${base_path}/healthy >/dev/null; \
+		for asset in firstimage.svg secondimage.svg first-image-dark.svg second-image-dark.svg fos-op-icon.svg; do \
+			curl --fail --silent \
+				http://127.0.0.1:$(SMOKE_PORT)$${base_path}/$${asset} >/dev/null; \
+		done; \
 		if [ -n "$${base_path}" ]; then \
 			test "$$(curl --silent --output /dev/null --write-out '%{http_code}' \
 				http://127.0.0.1:$(SMOKE_PORT)/healthy)" = "404"; \
+		else \
+			test "$$(curl --silent --output /dev/null --write-out '%{http_code}' \
+				http://127.0.0.1:$(SMOKE_PORT)/ui/v2/login/loginname)" = "307"; \
 		fi; \
 		echo "$${base_path:-/} health route is ready."
 
