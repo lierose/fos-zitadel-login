@@ -1,5 +1,6 @@
 "use client";
 
+import { APPEARANCE_STYLES, getComponentRoundness, getThemeConfig } from "@/lib/theme";
 import { clsx } from "clsx";
 import { Loader2Icon } from "lucide-react";
 import { ButtonHTMLAttributes, DetailedHTMLProps, forwardRef } from "react";
@@ -13,11 +14,17 @@ export type SignInWithIdentityProviderProps = DetailedHTMLProps<
   e2e?: string;
 };
 
-export const BaseButton = forwardRef<
-  HTMLButtonElement,
-  SignInWithIdentityProviderProps
->(function BaseButton(props, ref) {
+// Helper function to get default IDP button appearance from centralized theme system
+function getDefaultIdpButtonAppearance(): string {
+  const themeConfig = getThemeConfig();
+  const appearance = APPEARANCE_STYLES[themeConfig.appearance];
+  return appearance?.["idp-button"] || "border border-divider-light dark:border-divider-dark"; // Fallback to basic border
+}
+
+export const BaseButton = forwardRef<HTMLButtonElement, SignInWithIdentityProviderProps>(function BaseButton(props, ref) {
   const formStatus = useFormStatus();
+  const buttonRoundness = getComponentRoundness("button");
+  const idpButtonAppearance = getDefaultIdpButtonAppearance();
 
   return (
     <button
@@ -26,7 +33,10 @@ export const BaseButton = forwardRef<
       ref={ref}
       disabled={formStatus.pending}
       className={clsx(
-        "flex flex-1 cursor-pointer flex-row items-center rounded-md border border-divider-light bg-background-light-400 px-4 text-sm text-text-light-500 outline-none transition-all hover:border-black focus:border-primary-light-500 dark:border-divider-dark dark:bg-neutral-800 dark:text-text-dark-500 hover:dark:border-white focus:dark:border-primary-dark-500",
+        `text-text-light-500 focus:border-primary-light-500 dark:text-text-dark-500 focus:dark:border-primary-dark-500 flex flex-1 cursor-pointer flex-row items-center px-4 text-sm transition-all outline-none hover:border-black hover:dark:border-white`,
+        buttonRoundness,
+        idpButtonAppearance,
+        `bg-background-light-400 dark:bg-background-dark-500`, // Keep background as fallback for non-glass themes
         props.className,
       )}
     >

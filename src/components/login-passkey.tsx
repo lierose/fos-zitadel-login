@@ -1,17 +1,17 @@
 "use client";
 
 import { coerceToArrayBuffer, coerceToBase64Url } from "@/helpers/base64";
+import { handleServerActionResponse } from "@/lib/client-utils";
 import { sendPasskey } from "@/lib/server/passkeys";
-import { updateSession } from "@/lib/server/session";
+import { updateOrCreateSession } from "@/lib/server/session";
 import { create, JsonObject } from "@zitadel/client";
-import {
-  RequestChallengesSchema,
-  UserVerificationRequirement,
-} from "@zitadel/proto/zitadel/session/v2/challenge_pb";
+import { RequestChallengesSchema, UserVerificationRequirement } from "@zitadel/proto/zitadel/session/v2/challenge_pb";
 import { Checks } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "./alert";
+import { AutoSubmitForm } from "./auto-submit-form";
 import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
 import { Spinner } from "./spinner";
@@ -27,17 +27,12 @@ type Props = {
   organization?: string;
 };
 
-export function LoginPasskey({
-  loginName,
-  sessionId,
-  requestId,
-  altPassword,
-  organization,
-  login = true,
-}: Props) {
+export function LoginPasskey({ loginName, sessionId, requestId, altPassword, organization, login = true }: Props) {
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
+  const t = useTranslations("passkey");
   const router = useRouter();
 
   const initialized = useRef(false);
@@ -46,21 +41,19 @@ export function LoginPasskey({
     if (!initialized.current) {
       initialized.current = true;
       setLoading(true);
-      updateSessionForChallenge()
+      updateOrCreateSessionForChallenge()
         .then((response) => {
-          const pK =
-            response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions
-              ?.publicKey;
+          const pK = response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions?.publicKey;
 
           if (!pK) {
-            setError("Could not request passkey challenge");
+            setError(t("verify.errors.couldNotRequestChallenge"));
             setLoading(false);
             return;
           }
 
           return submitLoginAndContinue(pK)
             .catch((error) => {
-              setError(error);
+              setError(error instanceof Error ? error.message : String(error));
               return;
             })
             .finally(() => {
@@ -68,23 +61,24 @@ export function LoginPasskey({
             });
         })
         .catch((error) => {
-          setError(error);
+          setError(error instanceof Error ? error.message : String(error));
           return;
         })
         .finally(() => {
           setLoading(false);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function updateSessionForChallenge(
+  async function updateOrCreateSessionForChallenge(
     userVerificationRequirement: number = login
       ? UserVerificationRequirement.REQUIRED
       : UserVerificationRequirement.DISCOURAGED,
   ) {
     setError("");
     setLoading(true);
-    const session = await updateSession({
+    const sessionResponse = await updateOrCreateSession({
       loginName,
       sessionId,
       organization,
@@ -96,86 +90,73 @@ export function LoginPasskey({
       }),
       requestId,
     })
-      .catch(() => {
-        setError("Could not request passkey challenge");
+      .catch((error) => {
+        console.error(error);
+        setError(t("verify.errors.couldNotRequestChallenge"));
         return;
       })
       .finally(() => {
         setLoading(false);
       });
 
-    if (session && "error" in session && session.error) {
-      setError(session.error);
+    if (sessionResponse && "error" in sessionResponse && sessionResponse.error) {
+      setError(sessionResponse.error);
       return;
     }
 
-    return session;
+    return sessionResponse;
   }
 
   async function submitLogin(data: JsonObject) {
     setLoading(true);
-    const response = await sendPasskey({
-      loginName,
-      sessionId,
-      organization,
-      checks: {
-        webAuthN: { credentialAssertionData: data },
-      } as Checks,
-      requestId,
-    })
-      .catch(() => {
-        setError("Could not verify passkey");
-        return;
-      })
-      .finally(() => {
-        setLoading(false);
+    try {
+      const response = await sendPasskey({
+        loginName,
+        sessionId,
+        organization,
+        checks: {
+          webAuthN: { credentialAssertionData: data },
+        } as Checks,
+        requestId,
       });
 
-    if (response && "error" in response && response.error) {
-      setError(response.error);
-      return;
-    }
+      const handled = handleServerActionResponse(response, router, setSamlData, setError);
 
-    if (response && "redirect" in response && response.redirect) {
-      return router.push(response.redirect);
+      if (!handled) {
+        if (!response) {
+          setError(t("verify.errors.noResponseReceived"));
+        } else {
+          setError(t("verify.errors.noRedirectProvided"));
+        }
+      }
+    } catch {
+      setError(t("verify.errors.couldNotVerifyPasskey"));
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function submitLoginAndContinue(
-    publicKey: any,
-  ): Promise<boolean | void> {
-    publicKey.challenge = coerceToArrayBuffer(
-      publicKey.challenge,
-      "publicKey.challenge",
-    );
+  async function submitLoginAndContinue(publicKey: any): Promise<boolean | void> {
+    publicKey.challenge = coerceToArrayBuffer(publicKey.challenge, "publicKey.challenge");
     publicKey.allowCredentials.map((listItem: any) => {
-      listItem.id = coerceToArrayBuffer(
-        listItem.id,
-        "publicKey.allowCredentials.id",
-      );
+      listItem.id = coerceToArrayBuffer(listItem.id, "publicKey.allowCredentials.id");
     });
 
-    navigator.credentials
+    return navigator.credentials
       .get({
         publicKey,
       })
       .then((assertedCredential: any) => {
         if (!assertedCredential) {
-          setError("An error on retrieving passkey");
+          setError(t("verify.errors.couldNotRetrievePasskey"));
           return;
         }
 
-        const authData = new Uint8Array(
-          assertedCredential.response.authenticatorData,
-        );
-        const clientDataJSON = new Uint8Array(
-          assertedCredential.response.clientDataJSON,
-        );
+        const authData = new Uint8Array(assertedCredential.response.authenticatorData);
+        const clientDataJSON = new Uint8Array(assertedCredential.response.clientDataJSON);
         const rawId = new Uint8Array(assertedCredential.rawId);
         const sig = new Uint8Array(assertedCredential.response.signature);
-        const userHandle = new Uint8Array(
-          assertedCredential.response.userHandle,
-        );
+        const userHandle = new Uint8Array(assertedCredential.response.userHandle);
         const data = {
           id: assertedCredential.id,
           rawId: coerceToBase64Url(rawId, "rawId"),
@@ -190,6 +171,15 @@ export function LoginPasskey({
 
         return submitLogin(data);
       })
+      .catch((error) => {
+        // Handle passkey cancellation or errors
+        if (error?.name === "NotAllowedError") {
+          setError(t("verify.errors.verificationCancelled"));
+        } else {
+          setError(t("verify.errors.verificationFailed"));
+        }
+        console.error("Passkey verification error:", error);
+      })
       .finally(() => {
         setLoading(false);
       });
@@ -197,6 +187,7 @@ export function LoginPasskey({
 
   return (
     <div className="w-full">
+      {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
       {error && (
         <div className="py-4">
           <Alert>{error}</Alert>
@@ -227,7 +218,7 @@ export function LoginPasskey({
               }
 
               return router.push(
-                "/password?" + params, // alt is set because password is requested as alternative auth method, so passwordless prompt can be escaped
+                "/password?" + params, // alt is set because password is requested as alternative auth method, so passkey prompt can be escaped
               );
             }}
             data-testid="password-button"
@@ -245,16 +236,14 @@ export function LoginPasskey({
           variant={ButtonVariants.Primary}
           disabled={loading}
           onClick={async () => {
-            const response = await updateSessionForChallenge().finally(() => {
+            const response = await updateOrCreateSessionForChallenge().finally(() => {
               setLoading(false);
             });
 
-            const pK =
-              response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions
-                ?.publicKey;
+            const pK = response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions?.publicKey;
 
             if (!pK) {
-              setError("Could not request passkey challenge");
+              setError(t("verify.errors.couldNotRequestChallenge"));
               return;
             }
 
@@ -262,7 +251,7 @@ export function LoginPasskey({
 
             return submitLoginAndContinue(pK)
               .catch((error) => {
-                setError(error);
+                setError(error instanceof Error ? error.message : String(error));
                 return;
               })
               .finally(() => {
@@ -271,8 +260,7 @@ export function LoginPasskey({
           }}
           data-testid="submit-button"
         >
-          {loading && <Spinner className="mr-2 h-5 w-5" />}{" "}
-          <Translated i18nKey="verify.submit" namespace="passkey" />
+          {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="verify.submit" namespace="passkey" />
         </Button>
       </div>
     </div>

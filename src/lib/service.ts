@@ -6,8 +6,9 @@ import { SAMLService } from "@zitadel/proto/zitadel/saml/v2/saml_service_pb";
 import { SessionService } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { SettingsService } from "@zitadel/proto/zitadel/settings/v2/settings_service_pb";
 import { UserService } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
-import { systemAPIToken } from "./api";
-import { createServerTransport } from "./zitadel";
+import { loginClientKeyToken, systemAPIToken } from "./api";
+import { hasLoginClientKey, hasServiceUserToken, hasSystemUserCredentials } from "./deployment";
+import { createServerTransport, ServiceConfig } from "./zitadel";
 
 type ServiceClass =
   | typeof IdentityProviderService
@@ -18,32 +19,29 @@ type ServiceClass =
   | typeof SettingsService
   | typeof SAMLService;
 
-export async function createServiceForHost<T extends ServiceClass>(
-  service: T,
-  serviceUrl: string,
-) {
+export async function createServiceForHost<T extends ServiceClass>(service: T, serviceConfig: ServiceConfig) {
   let token;
 
-  // if we are running in a multitenancy context, use the system user token
-  if (
-    process.env.AUDIENCE &&
-    process.env.SYSTEM_USER_ID &&
-    process.env.SYSTEM_USER_PRIVATE_KEY
-  ) {
+  // Determine authentication method based on available credentials
+  // Priority: system user JWT > login client key > service account token
+  if (hasSystemUserCredentials()) {
     token = await systemAPIToken();
-  } else if (process.env.ZITADEL_SERVICE_USER_TOKEN) {
+  } else if (hasLoginClientKey()) {
+    token = await loginClientKeyToken();
+  } else if (hasServiceUserToken()) {
+    // Use service account token authentication (self-hosted)
     token = process.env.ZITADEL_SERVICE_USER_TOKEN;
+  } else {
+    throw new Error(
+      "No authentication credentials found. Set ZITADEL_LOGINCLIENT_KEYFILE, or system user credentials (AUDIENCE, SYSTEM_USER_ID, SYSTEM_USER_PRIVATE_KEY or SYSTEM_USER_PRIVATE_KEY_FILE), or ZITADEL_SERVICE_USER_TOKEN",
+    );
   }
 
-  if (!serviceUrl) {
-    throw new Error("No instance url found");
+  if (!serviceConfig) {
+    throw new Error("No service config found");
   }
 
-  if (!token) {
-    throw new Error("No token found");
-  }
-
-  const transport = createServerTransport(token, serviceUrl);
+  const transport = createServerTransport(token, serviceConfig);
 
   return createClientFor<T>(service)(transport);
 }

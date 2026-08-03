@@ -1,15 +1,18 @@
 "use client";
 
+import { handleServerActionResponse } from "@/lib/client-utils";
 import { resetPassword, sendPassword } from "@/lib/server/password";
 import { create } from "@zitadel/client";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
-import { Button, ButtonVariants, ButtonColors } from "./button";
+import { AutoSubmitForm } from "./auto-submit-form";
+import { BackButton } from "./back-button";
+import { Button, ButtonVariants } from "./button";
 import { TextInput } from "./input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
@@ -22,18 +25,20 @@ type Props = {
   loginSettings: LoginSettings | undefined;
   loginName: string;
   organization?: string;
+  defaultOrganization?: string;
   requestId?: string;
 };
 
-export function PasswordForm({ loginSettings, loginName, organization, requestId }: Props) {
+export function PasswordForm({ loginSettings, loginName, organization, defaultOrganization, requestId }: Props) {
   const { register, handleSubmit, formState } = useForm<Inputs>({
-    mode: "onBlur",
+    mode: "onChange",
   });
 
   const t = useTranslations("password");
 
   const [info, setInfo] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -43,29 +48,22 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
     setError("");
     setLoading(true);
 
-    const response = await sendPassword({
-      loginName,
-      organization,
-      checks: create(ChecksSchema, {
-        password: { password: values.password },
-      }),
-      requestId,
-    })
-      .catch(() => {
-        setError("Could not verify password");
-        return;
-      })
-      .finally(() => {
-        setLoading(false);
+    try {
+      const response = await sendPassword({
+        loginName,
+        organization,
+        defaultOrganization,
+        checks: create(ChecksSchema, {
+          password: { password: values.password },
+        }),
+        requestId,
       });
 
-    if (response && "error" in response && response.error) {
-      setError(response.error);
-      return;
-    }
-
-    if (response && "redirect" in response && response.redirect) {
-      return router.push(response.redirect);
+      handleServerActionResponse(response, router, setSamlData, setError);
+    } catch {
+      setError(t("verify.errors.couldNotVerifyPassword"));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,10 +75,11 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
     const response = await resetPassword({
       loginName,
       organization,
+      defaultOrganization,
       requestId,
     })
       .catch(() => {
-        setError("Could not reset password");
+        setError(t("errors.couldNotSendResetLink"));
         return;
       })
       .finally(() => {
@@ -88,11 +87,11 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
       });
 
     if (response && "error" in response) {
-      setError(response.error);
+      setError(response.error as string);
       return;
     }
 
-    setInfo("Password was reset. Please check your email.");
+    setInfo(t("verify.info.passwordResetSent"));
 
     const params = new URLSearchParams({
       loginName: loginName,
@@ -110,19 +109,21 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
   }
 
   return (
-    <form className="w-full">
-      <div className={`${error && "transform-gpu animate-shake"}`}>
-        <TextInput
-          type="password"
-          autoComplete="password"
-          {...register("password", { required: t("verify.required.password") })}
-          label={t("verify.labels.password")}
-          data-testid="password-text-input"
-        />
-        {!loginSettings?.hidePasswordReset && (
-          <div className="mt-2 flex w-full justify-end">
+    <>
+      {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
+      <form className="w-full">
+        <div className={`${error && "animate-shake transform-gpu"}`}>
+          <TextInput
+            type="password"
+            autoComplete="password"
+            autoFocus
+            {...register("password", { required: t("verify.required.password") })}
+            label={t("verify.labels.password")}
+            data-testid="password-text-input"
+          />
+          {!loginSettings?.hidePasswordReset && (
             <button
-              className="text-sm text-gray-600 transition-colors hover:text-warn-light-500 dark:text-gray-300 dark:hover:text-warn-dark-500"
+              className="hover:text-primary-light-500 dark:hover:text-primary-dark-500 text-sm transition-all"
               onClick={() => resetPasswordAndContinue()}
               type="button"
               disabled={loading}
@@ -130,37 +131,38 @@ export function PasswordForm({ loginSettings, loginName, organization, requestId
             >
               <Translated i18nKey="verify.resetPassword" namespace="password" />
             </button>
+          )}
+
+          {loginName && <input type="hidden" name="loginName" autoComplete="username" value={loginName} />}
+        </div>
+
+        {info && (
+          <div className="py-4">
+            <Alert type={AlertType.INFO}>{info}</Alert>
           </div>
         )}
 
-        {loginName && <input type="hidden" name="loginName" autoComplete="username" value={loginName} />}
-      </div>
+        {error && (
+          <div className="py-4" data-testid="error">
+            <Alert>{error}</Alert>
+          </div>
+        )}
 
-      {info && (
-        <div className="py-4">
-          <Alert type={AlertType.INFO}>{info}</Alert>
+        <div className="mt-8 flex w-full flex-row items-center">
+          <BackButton data-testid="back-button" />
+          <span className="flex-grow"></span>
+          <Button
+            type="submit"
+            className="self-end"
+            variant={ButtonVariants.Primary}
+            disabled={loading || !formState.isValid}
+            onClick={handleSubmit(submitPassword)}
+            data-testid="submit-button"
+          >
+            {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="verify.submit" namespace="password" />
+          </Button>
         </div>
-      )}
-
-      {error && (
-        <div className="py-4" data-testid="error">
-          <Alert>{error}</Alert>
-        </div>
-      )}
-
-      <div className="mt-8 w-full">
-        <Button
-          type="submit"
-          className="h-12 w-full justify-center"
-          variant={ButtonVariants.Primary}
-          color={ButtonColors.Warn}
-          disabled={loading || !formState.isValid}
-          onClick={handleSubmit(submitPassword)}
-          data-testid="submit-button"
-        >
-          {loading && <Spinner className="mr-2 h-5 w-5" />} <Translated i18nKey="verify.submit" namespace="password" />
-        </Button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }

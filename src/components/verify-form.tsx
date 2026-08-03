@@ -1,11 +1,14 @@
 "use client";
 
 import { Alert, AlertType } from "@/components/alert";
+import { handleServerActionResponse } from "@/lib/client-utils";
+import { UNKNOWN_USER_ID } from "@/lib/constants";
 import { resendVerification, sendVerification } from "@/lib/server/verify";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { AutoSubmitForm } from "./auto-submit-form";
 import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
 import { TextInput } from "./input";
@@ -23,20 +26,17 @@ type Props = {
   code?: string;
   isInvite: boolean;
   requestId?: string;
+  submit: boolean;
 };
 
-export function VerifyForm({
-  userId,
-  loginName,
-  organization,
-  requestId,
-  code,
-  isInvite,
-}: Props) {
+export function VerifyForm({ userId, loginName, organization, requestId, code, isInvite, submit }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const codeSent = searchParams.get("codeSent") === "true";
 
   const { register, handleSubmit, formState } = useForm<Inputs>({
-    mode: "onBlur",
+    mode: "onChange",
     defaultValues: {
       code: code ?? "",
     },
@@ -45,6 +45,7 @@ export function VerifyForm({
   const t = useTranslations("verify");
 
   const [error, setError] = useState<string>("");
+  const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -52,12 +53,20 @@ export function VerifyForm({
     setError("");
     setLoading(true);
 
+    // do not send code for dummy userid that is set to prevent user enumeration
+    if (userId === UNKNOWN_USER_ID) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setLoading(false);
+      return;
+    }
+
     const response = await resendVerification({
       userId,
       isInvite: isInvite,
+      requestId: requestId,
     })
       .catch(() => {
-        setError("Could not resend email");
+        setError(t("errors.couldNotResendEmail"));
         return;
       })
       .finally(() => {
@@ -69,51 +78,58 @@ export function VerifyForm({
       return;
     }
 
+    // Signal success via URL search param so the "code sent" alert is shown
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("codeSent", "true");
+    router.replace(`${pathname}?${params.toString()}`);
+
     return response;
   }
 
+  const processedCode = useRef<string | undefined>(undefined);
+
   const fcn = useCallback(
-    async function submitCodeAndContinue(
-      value: Inputs,
-    ): Promise<boolean | void> {
+    async function submitCodeAndContinue(value: Inputs): Promise<boolean | void> {
+      setError("");
       setLoading(true);
 
-      const response = await sendVerification({
-        code: value.code,
-        userId,
-        isInvite: isInvite,
-        loginName: loginName,
-        organization: organization,
-        requestId: requestId,
-      })
-        .catch(() => {
-          setError("Could not verify user");
-          return;
-        })
-        .finally(() => {
-          setLoading(false);
+      try {
+        const response = await sendVerification({
+          code: value.code,
+          userId,
+          isInvite: isInvite,
+          loginName: loginName,
+          organization: organization,
+          requestId: requestId,
         });
 
-      if (response && "error" in response && response?.error) {
-        setError(response.error);
-        return;
-      }
-
-      if (response && "redirect" in response && response?.redirect) {
-        return router.push(response?.redirect);
+        handleServerActionResponse(response, router, setSamlData, setError);
+      } catch {
+        setError(t("errors.couldNotVerifyUser"));
+      } finally {
+        setLoading(false);
       }
     },
-    [isInvite, userId],
+    [isInvite, userId, loginName, organization, requestId, router, t],
   );
 
   useEffect(() => {
-    if (code) {
+    if (submit && code && code !== processedCode.current) {
+      processedCode.current = code;
       fcn({ code });
     }
-  }, [code, fcn]);
+  }, [submit, code, fcn]);
 
   return (
     <>
+      {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
+      {codeSent && (
+        <div className="w-full py-4">
+          <Alert type={AlertType.INFO}>
+            <Translated i18nKey="verify.codeSent" namespace="verify" />
+          </Alert>
+        </div>
+      )}
       <form className="w-full">
         <Alert type={AlertType.INFO}>
           <div className="flex flex-row">
@@ -124,7 +140,7 @@ export function VerifyForm({
               aria-label="Resend Code"
               disabled={loading}
               type="button"
-              className="ml-4 cursor-pointer text-primary-light-500 hover:text-primary-light-400 disabled:cursor-default disabled:text-gray-400 dark:text-primary-dark-500 hover:dark:text-primary-dark-400 dark:disabled:text-gray-700"
+              className="text-primary-light-500 hover:text-primary-light-400 dark:text-primary-dark-500 hover:dark:text-primary-dark-400 ml-4 cursor-pointer disabled:cursor-default disabled:text-gray-400 dark:disabled:text-gray-700"
               onClick={() => {
                 resendCode();
               }}
@@ -138,6 +154,7 @@ export function VerifyForm({
           <TextInput
             type="text"
             autoComplete="one-time-code"
+            autoFocus
             {...register("code", { required: t("verify.required.code") })}
             label={t("verify.labels.code")}
             data-testid="code-text-input"

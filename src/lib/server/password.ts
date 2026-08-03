@@ -1,9 +1,9 @@
 "use server";
 
-import {
-  createSessionAndUpdateCookie,
-  setSessionAndUpdateCookie,
-} from "@/lib/server/cookie";
+import { isClassifiedError } from "@/lib/grpc/interceptors/error-classification";
+import { createLogger } from "@/lib/logger";
+import { recordAuthAttempt, recordAuthFailure, recordAuthSuccess } from "@/lib/metrics";
+import { createSessionAndUpdateCookie, setSessionAndUpdateCookie } from "@/lib/server/cookie";
 import {
   getLockoutSettings,
   getLoginSettings,
@@ -11,72 +11,119 @@ import {
   getSession,
   getUserByID,
   listAuthenticationMethodTypes,
-  listUsers,
   passwordReset,
+  searchUsers,
   setPassword,
   setUserPassword,
 } from "@/lib/zitadel";
-import { ConnectError, create, Duration } from "@zitadel/client";
-import { createUserServiceClient } from "@zitadel/client/v2";
-import {
-  Checks,
-  ChecksSchema,
-} from "@zitadel/proto/zitadel/session/v2/session_service_pb";
+import { Code, create, Duration } from "@zitadel/client";
+import { Checks, ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { User, UserState } from "@zitadel/proto/zitadel/user/v2/user_pb";
-import {
-  AuthenticationMethodType,
-  SetPasswordRequestSchema,
-} from "@zitadel/proto/zitadel/user/v2/user_service_pb";
+import { SetPasswordRequestSchema } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
+import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
-import { getNextUrl } from "../client";
+import { completeFlowOrGetUrl } from "../client";
 import { getSessionCookieById, getSessionCookieByLoginName } from "../cookies";
-import { getServiceUrlFromHeaders } from "../service-url";
+import { getServiceConfig } from "../service-url";
 import {
   checkEmailVerification,
   checkMFAFactors,
   checkPasswordChangeRequired,
   checkUserVerification,
 } from "../verify-helper";
-import { createServerTransport } from "../zitadel";
+import { getPublicHostWithProtocol } from "./host";
+
+const logger = createLogger("password");
 
 type ResetPasswordCommand = {
   loginName: string;
   organization?: string;
+  defaultOrganization?: string;
   requestId?: string;
 };
 
 export async function resetPassword(command: ResetPasswordCommand) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
-  const host = _headers.get("host");
+  const { serviceConfig } = getServiceConfig(_headers);
 
-  if (!host || typeof host !== "string") {
-    throw new Error("No host found");
+  const t = await getTranslations("password");
+
+  // Get the original host that the user sees with protocol
+  const hostWithProtocol = await getPublicHostWithProtocol(_headers);
+
+  const loginSettings = await getLoginSettings({
+    serviceConfig,
+    organization: command.organization ?? command.defaultOrganization,
+  });
+
+  if (!loginSettings) {
+    return { error: t("errors.couldNotSendResetLink") };
   }
 
-  const users = await listUsers({
-    serviceUrl,
-    loginName: command.loginName,
+  if (loginSettings.hidePasswordReset) {
+    return { error: t("errors.passwordResetNotAllowed") };
+  }
+
+  const searchResult = await searchUsers({
+    serviceConfig,
+    searchValue: command.loginName,
     organizationId: command.organization,
+    loginSettings,
   });
 
   if (
-    !users.details ||
-    users.details.totalResult !== BigInt(1) ||
-    !users.result[0].userId
+    !searchResult ||
+    !("result" in searchResult) ||
+    !searchResult.result ||
+    searchResult.result.length !== 1 ||
+    !searchResult.result[0].userId
   ) {
-    return { error: "Could not send Password Reset Link" };
+    if (loginSettings?.ignoreUnknownUsernames) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return {};
+    }
+    return { error: t("errors.couldNotSendResetLink") };
   }
-  const userId = users.result[0].userId;
+  const user = searchResult.result[0];
+  const humanUser = user.type.case === "human" ? user.type.value : undefined;
 
+  const userLoginSettings = await getLoginSettings({ serviceConfig, organization: user.details?.resourceOwner });
+
+  if (userLoginSettings?.disableLoginWithEmail && userLoginSettings?.disableLoginWithPhone) {
+    if (user.preferredLoginName !== command.loginName) {
+      if (userLoginSettings?.ignoreUnknownUsernames) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return {};
+      }
+      return { error: t("errors.couldNotSendResetLink") };
+    }
+  } else if (userLoginSettings?.disableLoginWithEmail) {
+    if (user.preferredLoginName !== command.loginName && humanUser?.phone?.phone !== command.loginName) {
+      if (userLoginSettings?.ignoreUnknownUsernames) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return {};
+      }
+      return { error: t("errors.couldNotSendResetLink") };
+    }
+  } else if (userLoginSettings?.disableLoginWithPhone) {
+    if (user.preferredLoginName !== command.loginName && humanUser?.email?.email !== command.loginName) {
+      if (userLoginSettings?.ignoreUnknownUsernames) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return {};
+      }
+      return { error: t("errors.couldNotSendResetLink") };
+    }
+  }
+
+  const userId = user.userId;
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   return passwordReset({
-    serviceUrl,
+    serviceConfig,
     userId,
     urlTemplate:
-      `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/password/set?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}` +
+      `${hostWithProtocol}${basePath}/password/set?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}` +
       (command.requestId ? `&requestId=${command.requestId}` : ""),
   });
 }
@@ -84,151 +131,226 @@ export async function resetPassword(command: ResetPasswordCommand) {
 export type UpdateSessionCommand = {
   loginName: string;
   organization?: string;
+  defaultOrganization?: string;
   checks: Checks;
   requestId?: string;
 };
 
-export async function sendPassword(command: UpdateSessionCommand) {
+export async function sendPassword(
+  command: UpdateSessionCommand,
+): Promise<{ error: string } | { redirect: string } | { samlData: { url: string; fields: Record<string, string> } }> {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
+  const t = await getTranslations("password");
+
+  recordAuthAttempt("password", command.organization);
 
   let sessionCookie = await getSessionCookieByLoginName({
     loginName: command.loginName,
     organization: command.organization,
-  }).catch((error) => {
-    console.warn("Ignored error:", error);
   });
 
   let session;
-  let user: User;
-  let loginSettings: LoginSettings | undefined;
+  let user: User | undefined;
+  let loginSettingsByContext: LoginSettings | undefined;
+  let loginSettingsByUser: LoginSettings | undefined;
+
+  // Perform policy check on context settings first if available, or fetch them if needed
+  if (!sessionCookie) {
+    if (!loginSettingsByContext) {
+      loginSettingsByContext = await getLoginSettings({
+        serviceConfig,
+        organization: command.organization ?? command.defaultOrganization,
+      });
+    }
+
+    if (loginSettingsByContext && !loginSettingsByContext.allowLocalAuthentication) {
+      return { error: t("errors.localAuthenticationNotAllowed") };
+    }
+  }
+
+  if (sessionCookie) {
+    try {
+      loginSettingsByUser = await getLoginSettings({ serviceConfig, organization: sessionCookie.organization });
+
+      if (loginSettingsByUser) {
+        let lifetime = loginSettingsByUser.passwordCheckLifetime;
+
+        if (!lifetime || !lifetime.seconds) {
+          logger.warn("No password lifetime provided, defaulting to 24 hours");
+          lifetime = {
+            seconds: BigInt(60 * 60 * 24), // default to 24 hours
+            nanos: 0,
+          } as Duration;
+        }
+
+        session = await setSessionAndUpdateCookie({
+          recentCookie: sessionCookie,
+          checks: command.checks,
+          requestId: command.requestId,
+          lifetime,
+        });
+      } else {
+        // Force fallback if settings can't be loaded
+        throw new Error("Could not load login settings");
+      }
+    } catch {
+      logger.warn("[Password] Could not update session");
+      // If the session was terminated or any other error occurred during update,
+      // we fall back to creating a new session.
+      sessionCookie = undefined;
+      session = undefined;
+    }
+  }
 
   if (!sessionCookie) {
-    const users = await listUsers({
-      serviceUrl,
-      loginName: command.loginName,
+    if (!loginSettingsByContext) {
+      loginSettingsByContext = await getLoginSettings({
+        serviceConfig,
+        organization: command.organization ?? command.defaultOrganization,
+      });
+    }
+
+    // Force fallback if settings can't be loaded
+    if (!loginSettingsByContext) {
+      // this is a fake error message to hide that the user does not even exist
+      recordAuthFailure("password", "settings_unavailable", command.organization);
+      return { error: t("errors.couldNotVerifyPassword") };
+    }
+
+    const searchResult = await searchUsers({
+      serviceConfig,
+      searchValue: command.loginName,
       organizationId: command.organization,
+      loginSettings: loginSettingsByContext,
     });
 
-    if (users.details?.totalResult == BigInt(1) && users.result[0].userId) {
-      user = users.result[0];
+    if (
+      searchResult &&
+      "result" in searchResult &&
+      searchResult.result &&
+      searchResult.result.length === 1 &&
+      searchResult.result[0].userId
+    ) {
+      user = searchResult.result[0];
+      const humanUser = user.type.case === "human" ? user.type.value : undefined;
+
+      const userLoginSettings = await getLoginSettings({ serviceConfig, organization: user.details?.resourceOwner });
+
+      // recheck login settings after user discovery, as the search might have been done without org scope
+      if (userLoginSettings?.disableLoginWithEmail && userLoginSettings?.disableLoginWithPhone) {
+        if (user.preferredLoginName !== command.loginName) {
+          // emulate user not found to prevent enumeration (use context settings not user settings)
+          recordAuthFailure("password", "login_name_mismatch", command.organization);
+          if (loginSettingsByContext?.ignoreUnknownUsernames) {
+            return { error: t("errors.failedToAuthenticateNoLimit") };
+          }
+          return { error: t("errors.couldNotVerifyPassword") };
+        }
+      } else if (userLoginSettings?.disableLoginWithEmail) {
+        if (user.preferredLoginName !== command.loginName && humanUser?.phone?.phone !== command.loginName) {
+          recordAuthFailure("password", "login_name_mismatch", command.organization);
+          if (loginSettingsByContext?.ignoreUnknownUsernames) {
+            return { error: t("errors.failedToAuthenticateNoLimit") };
+          }
+          return { error: t("errors.couldNotVerifyPassword") };
+        }
+      } else if (userLoginSettings?.disableLoginWithPhone) {
+        if (user.preferredLoginName !== command.loginName && humanUser?.email?.email !== command.loginName) {
+          recordAuthFailure("password", "login_name_mismatch", command.organization);
+          if (loginSettingsByContext?.ignoreUnknownUsernames) {
+            return { error: t("errors.failedToAuthenticateNoLimit") };
+          }
+          return { error: t("errors.couldNotVerifyPassword") };
+        }
+      }
 
       const checks = create(ChecksSchema, {
-        user: { search: { case: "userId", value: users.result[0].userId } },
+        user: { search: { case: "userId", value: user.userId } },
         password: { password: command.checks.password?.password },
       });
 
-      loginSettings = await getLoginSettings({
-        serviceUrl,
-        organization: command.organization,
-      });
-
       try {
-        session = await createSessionAndUpdateCookie({
+        const result = await createSessionAndUpdateCookie({
           checks,
           requestId: command.requestId,
-          lifetime: loginSettings?.passwordCheckLifetime,
+          lifetime: loginSettingsByContext?.passwordCheckLifetime,
         });
+        session = result.session;
+        sessionCookie = result.sessionCookie;
       } catch (error: any) {
         if ("failedAttempts" in error && error.failedAttempts) {
-          const lockoutSettings = await getLockoutSettings({
-            serviceUrl,
-            orgId: command.organization,
-          });
+          recordAuthFailure("password", "invalid_password", command.organization);
+          if (loginSettingsByContext?.ignoreUnknownUsernames) {
+            return { error: t("errors.failedToAuthenticateNoLimit") };
+          }
+          const lockoutSettings = await getLockoutSettings({ serviceConfig, orgId: command.organization });
+
+          const hasLimit =
+            lockoutSettings?.maxPasswordAttempts !== undefined && lockoutSettings?.maxPasswordAttempts > BigInt(0);
+          const locked = hasLimit && error.failedAttempts >= lockoutSettings?.maxPasswordAttempts;
+          const messageKey = hasLimit ? "errors.failedToAuthenticate" : "errors.failedToAuthenticateNoLimit";
 
           return {
-            error:
-              `Failed to authenticate. You had ${error.failedAttempts} of ${lockoutSettings?.maxPasswordAttempts} password attempts.` +
-              (lockoutSettings?.maxPasswordAttempts &&
-              error.failedAttempts >= lockoutSettings?.maxPasswordAttempts
-                ? "Contact your administrator to unlock your account"
-                : ""),
+            error: t(messageKey, {
+              failedAttempts: error.failedAttempts,
+              maxPasswordAttempts: hasLimit ? String(lockoutSettings?.maxPasswordAttempts ?? 0) : "?",
+              lockoutMessage: locked ? t("errors.accountLockedContactAdmin") : "",
+            }),
           };
         }
-        return { error: "Could not create session for user" };
+        recordAuthFailure("password", "session_creation_failed", command.organization);
+        if (loginSettingsByContext?.ignoreUnknownUsernames) {
+          return { error: t("errors.failedToAuthenticateNoLimit") };
+        }
+        return { error: t("errors.couldNotCreateSessionForUser") };
       }
-    }
-
-    // this is a fake error message to hide that the user does not even exist
-    return { error: "Could not verify password" };
-  } else {
-    loginSettings = await getLoginSettings({
-      serviceUrl,
-      organization: sessionCookie.organization,
-    });
-
-    if (!loginSettings) {
-      return { error: "Could not load login settings" };
-    }
-
-    let lifetime = loginSettings.passwordCheckLifetime;
-
-    if (!lifetime) {
-      console.warn("No password lifetime provided, defaulting to 24 hours");
-      lifetime = {
-        seconds: BigInt(60 * 60 * 24), // default to 24 hours
-        nanos: 0,
-      } as Duration;
-    }
-
-    try {
-      session = await setSessionAndUpdateCookie({
-        recentCookie: sessionCookie,
-        checks: command.checks,
-        requestId: command.requestId,
-        lifetime,
-      });
-    } catch (error: any) {
-      if ("failedAttempts" in error && error.failedAttempts) {
-        const lockoutSettings = await getLockoutSettings({
-          serviceUrl,
-          orgId: command.organization,
-        });
-
-        return {
-          error:
-            `Failed to authenticate. You had ${error.failedAttempts} of ${lockoutSettings?.maxPasswordAttempts} password attempts.` +
-            (lockoutSettings?.maxPasswordAttempts &&
-            error.failedAttempts >= lockoutSettings?.maxPasswordAttempts
-              ? " Contact your administrator to unlock your account"
-              : ""),
-        };
+    } else {
+      // this is a fake error message to hide that the user does not even exist
+      recordAuthFailure("password", "user_not_found", command.organization);
+      if (loginSettingsByContext?.ignoreUnknownUsernames) {
+        return { error: t("errors.failedToAuthenticateNoLimit") };
       }
-      throw error;
+      return { error: t("errors.couldNotVerifyPassword") };
     }
+  }
 
-    if (!session?.factors?.user?.id) {
-      return { error: "Could not create session for user" };
+  if (!session?.factors?.user?.id) {
+    recordAuthFailure("password", "session_invalid", command.organization);
+    if (loginSettingsByContext?.ignoreUnknownUsernames) {
+      return { error: t("errors.failedToAuthenticateNoLimit") };
     }
+    return { error: t("errors.couldNotCreateSessionForUser") };
+  }
 
-    const userResponse = await getUserByID({
-      serviceUrl,
-      userId: session?.factors?.user?.id,
-    });
-
+  if (!user) {
+    const userResponse = await getUserByID({ serviceConfig, userId: session?.factors?.user?.id });
     if (!userResponse.user) {
-      return { error: "User not found in the system" };
+      recordAuthFailure("password", "user_not_found", command.organization);
+      return { error: t("errors.userNotFound") };
     }
-
     user = userResponse.user;
   }
 
-  if (!loginSettings) {
-    loginSettings = await getLoginSettings({
-      serviceUrl,
-      organization:
-        command.organization ?? session.factors?.user?.organizationId,
-    });
+  if (!session?.factors?.user?.id || !sessionCookie) {
+    recordAuthFailure("password", "session_invalid", command.organization);
+    if (loginSettingsByContext?.ignoreUnknownUsernames) {
+      return { error: t("errors.failedToAuthenticateNoLimit") };
+    }
+    return { error: t("errors.couldNotCreateSessionForUser") };
   }
 
-  if (!session?.factors?.user?.id || !sessionCookie) {
-    return { error: "Could not create session for user" };
+  if (!loginSettingsByUser) {
+    loginSettingsByUser = await getLoginSettings({
+      serviceConfig,
+      organization: command.organization ?? session.factors?.user?.organizationId ?? command.defaultOrganization,
+    });
   }
 
   const humanUser = user.type.case === "human" ? user.type.value : undefined;
 
   const expirySettings = await getPasswordExpirySettings({
-    serviceUrl,
+    serviceConfig,
     orgId: command.organization ?? session.factors?.user?.organizationId,
   });
 
@@ -247,16 +369,12 @@ export async function sendPassword(command: UpdateSessionCommand) {
 
   // throw error if user is in initial state here and do not continue
   if (user.state === UserState.INITIAL) {
-    return { error: "Initial User not supported" };
+    recordAuthFailure("password", "user_initial_state", command.organization);
+    return { error: t("errors.initialUserNotSupported") };
   }
 
   // check to see if user was verified
-  const emailVerificationCheck = checkEmailVerification(
-    session,
-    humanUser,
-    command.organization,
-    command.requestId,
-  );
+  const emailVerificationCheck = await checkEmailVerification(session, humanUser, command.organization, command.requestId);
 
   if (emailVerificationCheck?.redirect) {
     return emailVerificationCheck;
@@ -265,23 +383,21 @@ export async function sendPassword(command: UpdateSessionCommand) {
   // if password, check if user has MFA methods
   let authMethods;
   if (command.checks && command.checks.password && session.factors?.user?.id) {
-    const response = await listAuthenticationMethodTypes({
-      serviceUrl,
-      userId: session.factors.user.id,
-    });
+    const response = await listAuthenticationMethodTypes({ serviceConfig, userId: session.factors.user.id });
     if (response.authMethodTypes && response.authMethodTypes.length) {
       authMethods = response.authMethodTypes;
     }
   }
 
   if (!authMethods) {
-    return { error: "Could not verify password!" };
+    recordAuthFailure("password", "no_auth_methods", command.organization);
+    return { error: t("errors.couldNotVerifyPassword") };
   }
 
   const mfaFactorCheck = await checkMFAFactors(
-    serviceUrl,
+    serviceConfig,
     session,
-    loginSettings,
+    loginSettingsByUser,
     authMethods,
     command.organization,
     command.requestId,
@@ -291,110 +407,174 @@ export async function sendPassword(command: UpdateSessionCommand) {
     return mfaFactorCheck;
   }
 
+  let result: Awaited<ReturnType<typeof completeFlowOrGetUrl>>;
+
   if (command.requestId && session.id) {
-    const nextUrl = await getNextUrl(
+    // OIDC/SAML flow
+    logger.info("Password auth: OIDC/SAML flow with requestId:", { requestId: command.requestId, sessionId: session.id });
+    result = await completeFlowOrGetUrl(
       {
         sessionId: session.id,
         requestId: command.requestId,
-        organization:
-          command.organization ?? session.factors?.user?.organizationId,
+        organization: command.organization ?? session.factors?.user?.organizationId,
       },
-      loginSettings?.defaultRedirectUri,
+      loginSettingsByUser?.defaultRedirectUri,
     );
-
-    return { redirect: nextUrl };
+  } else {
+    // Regular flow (no requestId)
+    logger.info("Password auth: Regular flow with loginName:", { loginName: session.factors.user.loginName });
+    result = await completeFlowOrGetUrl(
+      {
+        loginName: session.factors.user.loginName,
+        organization: session.factors?.user?.organizationId,
+      },
+      loginSettingsByUser?.defaultRedirectUri,
+    );
   }
 
-  const url = await getNextUrl(
-    {
-      loginName: session.factors.user.loginName,
-      organization: session.factors?.user?.organizationId,
-    },
-    loginSettings?.defaultRedirectUri,
-  );
+  if (result && typeof result === "object") {
+    if ("redirect" in result) {
+      recordAuthSuccess("password", command.organization);
+    } else if ("error" in result) {
+      recordAuthFailure("password", "flow_error", command.organization);
+    }
+    return result;
+  }
 
-  return { redirect: url };
+  recordAuthFailure("password", "navigation_failed", command.organization);
+  return { error: "Authentication completed but navigation failed" };
 }
 
 // this function lets users with code set a password or users with valid User Verification Check
-export async function changePassword(command: {
-  code?: string;
-  userId: string;
-  password: string;
-}) {
+export async function changePassword(command: { code?: string; userId: string; password: string; organization?: string }) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
+  const t = await getTranslations("password");
 
   // check for init state
-  const { user } = await getUserByID({
-    serviceUrl,
-    userId: command.userId,
-  });
+  const { user } = await getUserByID({ serviceConfig, userId: command.userId });
 
   if (!user || user.userId !== command.userId) {
-    return { error: "Could not send Password Reset Link" };
+    const loginSettings = await getLoginSettings({ serviceConfig, organization: command.organization });
+    if (loginSettings?.ignoreUnknownUsernames) {
+      return { error: t("set.errors.couldNotSetPassword") };
+    }
+    return { error: t("errors.couldNotSendResetLink") };
   }
   const userId = user.userId;
 
   if (user.state === UserState.INITIAL) {
-    return { error: "User Initial State is not supported" };
+    return { error: t("errors.userInitialStateNotSupported") };
   }
 
   // check if the user has no password set in order to set a password
   if (!command.code) {
-    const authmethods = await listAuthenticationMethodTypes({
-      serviceUrl,
-      userId,
-    });
+    const authmethods = await listAuthenticationMethodTypes({ serviceConfig, userId });
 
     // if the user has no authmethods set, we need to check if the user was verified
     if (authmethods.authMethodTypes.length !== 0) {
       return {
-        error:
-          "You have to provide a code or have a valid User Verification Check",
+        error: t("errors.codeOrVerificationRequired"),
       };
     }
 
     // check if a verification was done earlier
-    const hasValidUserVerificationCheck = await checkUserVerification(
-      user.userId,
-    );
+    const hasValidUserVerificationCheck = await checkUserVerification(user.userId);
 
     if (!hasValidUserVerificationCheck) {
-      return { error: "User Verification Check has to be done" };
+      return { error: t("errors.verificationRequired") };
     }
   }
 
-  return setUserPassword({
-    serviceUrl,
-    userId,
-    password: command.password,
-    code: command.code,
-  });
+  return setUserPassword({ serviceConfig, userId, password: command.password, code: command.code });
 }
 
 type CheckSessionAndSetPasswordCommand = {
   sessionId: string;
+  currentPassword: string;
   password: string;
 };
 
 export async function checkSessionAndSetPassword({
   sessionId,
+  currentPassword,
   password,
 }: CheckSessionAndSetPasswordCommand) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
+  const t = await getTranslations("password");
 
   const sessionCookie = await getSessionCookieById({ sessionId });
 
-  const { session } = await getSession({
-    serviceUrl,
-    sessionId: sessionCookie.id,
-    sessionToken: sessionCookie.token,
-  });
+  if (!sessionCookie) {
+    return { error: "Could not load session cookie" };
+  }
+
+  let session;
+  try {
+    const sessionResponse = await getSession({
+      serviceConfig,
+      sessionId: sessionCookie.id,
+      sessionToken: sessionCookie.token,
+    });
+    session = sessionResponse.session;
+  } catch (error) {
+    logger.error("Error getting session:", { error });
+    return { error: "Could not load session" };
+  }
 
   if (!session || !session.factors?.user?.id) {
-    return { error: "Could not load session" };
+    return { error: t("errors.couldNotLoadSession") };
+  }
+
+  const loginSettings = await getLoginSettings({
+    serviceConfig,
+    organization: sessionCookie.organization,
+  });
+
+  let lifetime = loginSettings?.passwordCheckLifetime;
+  if (!lifetime || !lifetime.seconds) {
+    lifetime = {
+      seconds: BigInt(60 * 60 * 24),
+      nanos: 0,
+    } as Duration;
+  }
+
+  const checks = create(ChecksSchema, {
+    password: { password: currentPassword },
+  });
+
+  try {
+    await setSessionAndUpdateCookie({
+      recentCookie: sessionCookie,
+      checks,
+      lifetime,
+      requestId: sessionCookie.requestId,
+    });
+  } catch (error: any) {
+    if ("failedAttempts" in error && error.failedAttempts) {
+      if (loginSettings?.ignoreUnknownUsernames) {
+        return { error: t("errors.failedToAuthenticateNoLimit") };
+      }
+      const lockoutSettings = await getLockoutSettings({ serviceConfig, orgId: sessionCookie.organization });
+
+      const hasLimit =
+        lockoutSettings?.maxPasswordAttempts !== undefined && lockoutSettings?.maxPasswordAttempts > BigInt(0);
+      const locked = hasLimit && error.failedAttempts >= lockoutSettings?.maxPasswordAttempts;
+      const messageKey = hasLimit ? "errors.failedToAuthenticate" : "errors.failedToAuthenticateNoLimit";
+
+      return {
+        error: t(messageKey, {
+          failedAttempts: error.failedAttempts,
+          maxPasswordAttempts: hasLimit ? String(lockoutSettings?.maxPasswordAttempts ?? 0) : "?",
+          lockoutMessage: locked ? t("errors.accountLockedContactAdmin") : "",
+        }),
+      };
+    }
+    if (loginSettings?.ignoreUnknownUsernames) {
+      return { error: t("change.errors.couldNotVerifyPassword") };
+    }
+    return { error: t("change.errors.currentPasswordInvalid") };
   }
 
   const payload = create(SetPasswordRequestSchema, {
@@ -404,75 +584,11 @@ export async function checkSessionAndSetPassword({
     },
   });
 
-  // check if the user has no password set in order to set a password
-  const authmethods = await listAuthenticationMethodTypes({
-    serviceUrl,
-    userId: session.factors.user.id,
+  return setPassword({ serviceConfig, payload }).catch((error) => {
+    // throw error if failed precondition (ex. User is not yet initialized)
+    if (isClassifiedError(error) && error.code === Code.FailedPrecondition && error.message) {
+      return { error: t("errors.failedPrecondition") };
+    }
+    return { error: "Could not set password" };
   });
-
-  if (!authmethods) {
-    return { error: "Could not load auth methods" };
-  }
-
-  const requiredAuthMethodsForForceMFA = [
-    AuthenticationMethodType.OTP_EMAIL,
-    AuthenticationMethodType.OTP_SMS,
-    AuthenticationMethodType.TOTP,
-    AuthenticationMethodType.U2F,
-  ];
-
-  const hasNoMFAMethods = requiredAuthMethodsForForceMFA.every(
-    (method) => !authmethods.authMethodTypes.includes(method),
-  );
-
-  const loginSettings = await getLoginSettings({
-    serviceUrl,
-    organization: session.factors.user.organizationId,
-  });
-
-  const forceMfa = !!(
-    loginSettings?.forceMfa || loginSettings?.forceMfaLocalOnly
-  );
-
-  // if the user has no MFA but MFA is enforced, we can set a password otherwise we use the token of the user
-  if (forceMfa && hasNoMFAMethods) {
-    return setPassword({ serviceUrl, payload }).catch((error) => {
-      // throw error if failed precondition (ex. User is not yet initialized)
-      if (error.code === 9 && error.message) {
-        return { error: "Failed precondition" };
-      } else {
-        throw error;
-      }
-    });
-  } else {
-    const transport = async (serviceUrl: string, token: string) => {
-      return createServerTransport(token, serviceUrl);
-    };
-
-    const myUserService = async (serviceUrl: string, sessionToken: string) => {
-      const transportPromise = await transport(serviceUrl, sessionToken);
-      return createUserServiceClient(transportPromise);
-    };
-
-    const selfService = await myUserService(
-      serviceUrl,
-      `${sessionCookie.token}`,
-    );
-
-    return selfService
-      .setPassword(
-        {
-          userId: session.factors.user.id,
-          newPassword: { password, changeRequired: false },
-        },
-        {},
-      )
-      .catch((error: ConnectError) => {
-        console.log(error);
-        if (error.code === 7) {
-          return { error: "Session is not valid." };
-        }
-        throw error;
-      });
-  }
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { createLogger } from "@/lib/logger";
 import {
   createInviteCode,
   getLoginSettings,
@@ -16,36 +17,45 @@ import crypto from "crypto";
 import { create } from "@zitadel/client";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
+import { AuthenticationMethodType } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
+import { getTranslations } from "next-intl/server";
 import { cookies, headers } from "next/headers";
-import { getNextUrl } from "../client";
+import { completeFlowOrGetUrl } from "../client";
 import { getSessionCookieByLoginName } from "../cookies";
 import { getOrSetFingerprintId } from "../fingerprint";
-import { getServiceUrlFromHeaders } from "../service-url";
+import { checkMFAFactors } from "../mfa-helper";
+import { getServiceConfig } from "../service-url";
 import { loadMostRecentSession } from "../session";
-import { checkMFAFactors } from "../verify-helper";
 import { createSessionAndUpdateCookie } from "./cookie";
+import { getEnrollmentAuthorizationError } from "./enrollment-guard";
+import { getPublicHostWithProtocol } from "./host";
 
-export async function verifyTOTP(
-  code: string,
-  loginName?: string,
-  organization?: string,
-) {
+const logger = createLogger("verify");
+
+export async function verifyTOTP(code: string, loginName?: string, organization?: string) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
   return loadMostRecentSession({
-    serviceUrl,
+    serviceConfig,
     sessionParams: {
       loginName,
       organization,
     },
-  }).then((session) => {
+  }).then(async (session) => {
     if (session?.factors?.user?.id) {
-      return verifyTOTPRegistration({
-        serviceUrl,
-        code,
+      // Enrollment must be authorized: a bare identify-only session must not be able to
+      // activate a TOTP factor on the account (GHSA-45f2-5q3r-xgg6).
+      const enrollmentError = await getEnrollmentAuthorizationError({
+        serviceConfig,
+        session,
         userId: session.factors.user.id,
       });
+      if (enrollmentError) {
+        return { error: enrollmentError };
+      }
+
+      return verifyTOTPRegistration({ serviceConfig, code, userId: session.factors.user.id });
     } else {
       throw Error("No user id found in session.");
     }
@@ -62,25 +72,18 @@ type VerifyUserByEmailCommand = {
 };
 
 export async function sendVerification(command: VerifyUserByEmailCommand) {
+  const t = await getTranslations("verify");
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
   const verifyResponse = command.isInvite
-    ? await verifyInviteCode({
-        serviceUrl,
-        userId: command.userId,
-        verificationCode: command.code,
-      }).catch((error) => {
-        console.warn(error);
-        return { error: "Could not verify invite" };
+    ? await verifyInviteCode({ serviceConfig, userId: command.userId, verificationCode: command.code }).catch((error) => {
+        logger.warn("Could not verify invite:", { error });
+        return { error: t("errors.couldNotVerifyInvite") };
       })
-    : await verifyEmail({
-        serviceUrl,
-        userId: command.userId,
-        verificationCode: command.code,
-      }).catch((error) => {
-        console.warn(error);
-        return { error: "Could not verify email" };
+    : await verifyEmail({ serviceConfig, userId: command.userId, verificationCode: command.code }).catch((error) => {
+        logger.warn("Could not verify email:", { error });
+        return { error: t("errors.couldNotVerifyEmail") };
       });
 
   if ("error" in verifyResponse) {
@@ -88,58 +91,55 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
   }
 
   if (!verifyResponse) {
-    return { error: "Could not verify" };
+    return { error: t("errors.couldNotVerify") };
   }
 
   let session: Session | undefined;
-  const userResponse = await getUserByID({
-    serviceUrl,
-    userId: command.userId,
-  });
+  const userResponse = await getUserByID({ serviceConfig, userId: command.userId });
 
   if (!userResponse || !userResponse.user) {
-    return { error: "Could not load user" };
+    return { error: t("errors.couldNotLoadUser") };
   }
 
   const user = userResponse.user;
 
   const sessionCookie = await getSessionCookieByLoginName({
-    loginName:
-      "loginName" in command ? command.loginName : user.preferredLoginName,
+    loginName: command.loginName ?? user.preferredLoginName,
     organization: command.organization,
-  }).catch((error) => {
-    console.warn("Ignored error:", error); // checked later
   });
 
   if (sessionCookie) {
-    session = await getSession({
-      serviceUrl,
-      sessionId: sessionCookie.id,
-      sessionToken: sessionCookie.token,
-    }).then((response) => {
-      if (response?.session) {
-        return response.session;
-      }
-    });
+    session = await getSession({ serviceConfig, sessionId: sessionCookie.id, sessionToken: sessionCookie.token })
+      .then((response) => {
+        if (response?.session) {
+          return response.session;
+        }
+      })
+      .catch((error) => {
+        // user session is not found, so we create a new one
+        logger.warn("[verify] user session is not found, so we create a new one", { error });
+        return undefined;
+      });
   }
 
   // load auth methods for user
-  const authMethodResponse = await listAuthenticationMethodTypes({
-    serviceUrl,
-    userId: user.userId,
-  });
+  const authMethodResponse = await listAuthenticationMethodTypes({ serviceConfig, userId: user.userId });
 
   if (!authMethodResponse || !authMethodResponse.authMethodTypes) {
-    return { error: "Could not load possible authenticators" };
+    return { error: t("errors.couldNotLoadAuthenticators") };
   }
 
-  // if no authmethods are found on the user, redirect to set one up
-  if (
-    authMethodResponse &&
-    authMethodResponse.authMethodTypes &&
-    authMethodResponse.authMethodTypes.length == 0
-  ) {
-    if (!sessionCookie) {
+  const hasPrimaryMethod =
+    authMethodResponse?.authMethodTypes?.some(
+      (m: AuthenticationMethodType) =>
+        m === AuthenticationMethodType.PASSWORD ||
+        m === AuthenticationMethodType.PASSKEY ||
+        m === AuthenticationMethodType.IDP,
+    ) ?? false;
+
+  // if no primary auth methods are found on the user, redirect to set one up
+  if (!hasPrimaryMethod) {
+    if (!session) {
       const checks = create(ChecksSchema, {
         user: {
           search: {
@@ -149,14 +149,15 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
         },
       });
 
-      session = await createSessionAndUpdateCookie({
+      const result = await createSessionAndUpdateCookie({
         checks,
         requestId: command.requestId,
       });
+      session = result.session;
     }
 
     if (!session) {
-      return { error: "Could not create session" };
+      return { error: t("errors.couldNotCreateSession") };
     }
 
     const params = new URLSearchParams({
@@ -167,14 +168,15 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
       params.set("loginName", session.factors?.user?.loginName);
     }
 
+    if (command.requestId) {
+      params.set("requestId", command.requestId);
+    }
+
     // set hash of userId and userAgentId to prevent attacks, checks are done for users with invalid sessions and invalid userAgentId
     const cookiesList = await cookies();
     const userAgentId = await getOrSetFingerprintId();
 
-    const verificationCheck = crypto
-      .createHash("sha256")
-      .update(`${user.userId}:${userAgentId}`)
-      .digest("hex");
+    const verificationCheck = crypto.createHash("sha256").update(`${user.userId}:${userAgentId}`).digest("hex");
 
     await cookiesList.set({
       name: "verificationCheck",
@@ -196,15 +198,10 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
       verifySuccessParams.set("userId", command.userId);
     }
 
-    if (
-      ("loginName" in command && command.loginName) ||
-      user.preferredLoginName
-    ) {
+    if (("loginName" in command && command.loginName) || user.preferredLoginName) {
       verifySuccessParams.set(
         "loginName",
-        "loginName" in command && command.loginName
-          ? command.loginName
-          : user.preferredLoginName,
+        "loginName" in command && command.loginName ? command.loginName : user.preferredLoginName,
       );
     }
     if (command.requestId) {
@@ -217,14 +214,11 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
     return { redirect: `/verify/success?${verifySuccessParams}` };
   }
 
-  const loginSettings = await getLoginSettings({
-    serviceUrl,
-    organization: user.details?.resourceOwner,
-  });
+  const loginSettings = await getLoginSettings({ serviceConfig, organization: user.details?.resourceOwner });
 
   // redirect to mfa factor if user has one, or redirect to set one up
   const mfaFactorCheck = await checkMFAFactors(
-    serviceUrl,
+    serviceConfig,
     session,
     loginSettings,
     authMethodResponse.authMethodTypes,
@@ -238,28 +232,43 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
 
   // login user if no additional steps are required
   if (command.requestId && session.id) {
-    const nextUrl = await getNextUrl(
+    return completeFlowOrGetUrl(
       {
         sessionId: session.id,
         requestId: command.requestId,
-        organization:
-          command.organization ?? session.factors?.user?.organizationId,
+        organization: command.organization ?? session.factors?.user?.organizationId,
       },
       loginSettings?.defaultRedirectUri,
     );
-
-    return { redirect: nextUrl };
   }
 
-  const url = await getNextUrl(
+  // Regular flow - return URL for client-side navigation
+  return completeFlowOrGetUrl(
     {
       loginName: session.factors.user.loginName,
       organization: session.factors?.user?.organizationId,
     },
     loginSettings?.defaultRedirectUri,
   );
+}
 
-  return { redirect: url };
+function buildVerificationUrlTemplate(
+  hostWithProtocol: string,
+  basePath: string,
+  isInvite: boolean,
+  requestId?: string,
+): string {
+  let urlTemplate = `${hostWithProtocol}${basePath}/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}`;
+
+  if (isInvite) {
+    urlTemplate += "&invite=true";
+  }
+
+  if (requestId) {
+    urlTemplate += `&requestId=${encodeURIComponent(requestId)}`;
+  }
+
+  return urlTemplate;
 }
 
 type resendVerifyEmailCommand = {
@@ -269,35 +278,29 @@ type resendVerifyEmailCommand = {
 };
 
 export async function resendVerification(command: resendVerifyEmailCommand) {
+  const t = await getTranslations("verify");
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
-  const host = _headers.get("host");
-
-  if (!host) {
-    return { error: "No host found" };
-  }
+  const { serviceConfig } = getServiceConfig(_headers);
+  const hostWithProtocol = await getPublicHostWithProtocol(_headers);
 
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const urlTemplate = buildVerificationUrlTemplate(hostWithProtocol, basePath, command.isInvite, command.requestId);
 
   return command.isInvite
     ? createInviteCode({
-        serviceUrl,
+        serviceConfig,
         userId: command.userId,
-        urlTemplate:
-          `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true` +
-          (command.requestId ? `&requestId=${command.requestId}` : ""),
+        urlTemplate,
       }).catch((error) => {
         if (error.code === 9) {
-          return { error: "User is already verified!" };
+          return { error: t("errors.userAlreadyVerified") };
         }
-        return { error: "Could not resend invite" };
+        return { error: t("errors.couldNotResendInvite") };
       })
     : zitadelSendEmailCode({
+        serviceConfig,
         userId: command.userId,
-        serviceUrl,
-        urlTemplate:
-          `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}` +
-          (command.requestId ? `&requestId=${command.requestId}` : ""),
+        urlTemplate,
       });
 }
 
@@ -308,22 +311,55 @@ type SendEmailCommand = {
 
 export async function sendEmailCode(command: SendEmailCommand) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
-  return zitadelSendEmailCode({
-    serviceUrl,
-    userId: command.userId,
-    urlTemplate: command.urlTemplate,
-  });
+  return zitadelSendEmailCode({ serviceConfig, userId: command.userId, urlTemplate: command.urlTemplate });
 }
 
 export async function sendInviteEmailCode(command: SendEmailCommand) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
-  return createInviteCode({
-    serviceUrl,
-    userId: command.userId,
-    urlTemplate: command.urlTemplate,
-  });
+  return createInviteCode({ serviceConfig, userId: command.userId, urlTemplate: command.urlTemplate });
+}
+
+type TrySendVerificationCommand = {
+  userId: string;
+  isInvite: boolean;
+  requestId?: string;
+};
+
+/**
+ * Attempts to send an initial verification email/invite code.
+ * Returns `true` if sent successfully, `false` on error (swallowed and logged).
+ */
+export async function trySendVerification(command: TrySendVerificationCommand): Promise<boolean> {
+  try {
+    const _headers = await headers();
+    const { serviceConfig } = getServiceConfig(_headers);
+    const hostWithProtocol = await getPublicHostWithProtocol(_headers);
+
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    const urlTemplate = buildVerificationUrlTemplate(hostWithProtocol, basePath, command.isInvite, command.requestId);
+
+    if (command.isInvite) {
+      await createInviteCode({
+        serviceConfig,
+        userId: command.userId,
+        urlTemplate,
+      });
+    } else {
+      await zitadelSendEmailCode({
+        serviceConfig,
+        userId: command.userId,
+        urlTemplate,
+      });
+    }
+
+    logger.info("Verification email sent successfully", { userId: command.userId, isInvite: command.isInvite });
+    return true;
+  } catch (err) {
+    logger.error("Failed to send verification email", { userId: command.userId, isInvite: command.isInvite, error: err });
+    return false;
+  }
 }

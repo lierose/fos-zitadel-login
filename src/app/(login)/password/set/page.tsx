@@ -1,17 +1,25 @@
 import { Alert, AlertType } from "@/components/alert";
+import { DynamicTheme } from "@/components/dynamic-theme";
 import { SetPasswordForm } from "@/components/set-password-form";
 import { Translated } from "@/components/translated";
-import Image from "next/image";
-import { LogoLink } from "@/components/logo-link";
-import { getServiceUrlFromHeaders } from "@/lib/service-url";
+import { UserAvatar } from "@/components/user-avatar";
+import { UNKNOWN_USER_ID } from "@/lib/constants";
+import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
-import { getBrandingSettings, getLoginSettings, getPasswordComplexitySettings, getUserByID } from "@/lib/zitadel";
+import {
+  getBrandingSettings,
+  getDefaultOrg,
+  getLoginSettings,
+  getPasswordComplexitySettings,
+  getUserByID,
+  searchUsers,
+} from "@/lib/zitadel";
+import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
-import { HumanUser, User } from "@zitadel/proto/zitadel/user/v2/user_pb";
+import { User } from "@zitadel/proto/zitadel/user/v2/user_pb";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
-import { BackInline } from "@/components/back-inline";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("password");
@@ -21,16 +29,24 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page(props: { searchParams: Promise<Record<string | number | symbol, string | undefined>> }) {
   const searchParams = await props.searchParams;
 
-  const { userId, loginName, organization, requestId, code, initial } = searchParams;
+  let { userId, loginName, organization, requestId, code, initial } = searchParams;
 
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
+
+  let defaultOrganization;
+  if (!organization) {
+    const org: Organization | null = await getDefaultOrg({ serviceConfig });
+    if (org) {
+      defaultOrganization = org.id;
+    }
+  }
 
   // also allow no session to be found (ignoreUnkownUsername)
   let session: Session | undefined;
   if (loginName) {
     session = await loadMostRecentSession({
-      serviceUrl,
+      serviceConfig,
       sessionParams: {
         loginName,
         organization,
@@ -38,137 +54,109 @@ export default async function Page(props: { searchParams: Promise<Record<string 
     });
   }
 
-  const branding = await getBrandingSettings({
-    serviceUrl,
-    organization,
-  });
+  const branding = await getBrandingSettings({ serviceConfig, organization: organization ?? defaultOrganization });
 
   const passwordComplexity = await getPasswordComplexitySettings({
-    serviceUrl,
-    organization: session?.factors?.user?.organizationId,
+    serviceConfig,
+    organization: organization ?? session?.factors?.user?.organizationId ?? defaultOrganization,
   });
 
   const loginSettings = await getLoginSettings({
-    serviceUrl,
-    organization,
+    serviceConfig,
+    organization: organization ?? session?.factors?.user?.organizationId ?? defaultOrganization,
   });
 
-  let user: User | undefined;
-  let displayName: string | undefined;
-  if (userId) {
-    const userResponse = await getUserByID({
-      serviceUrl,
-      userId,
-    });
-    user = userResponse.user;
+  if (!loginSettings) {
+    return (
+      <DynamicTheme branding={branding}>
+        <div className="mx-auto flex max-w-sm flex-col space-y-4 pt-4">
+          <Alert>
+            <Translated i18nKey="errors.couldNotGetLoginSettings" namespace="loginname" />
+          </Alert>
+        </div>
+      </DynamicTheme>
+    );
+  }
 
-    if (user?.type.case === "human") {
-      displayName = (user.type.value as HumanUser).profile?.displayName;
+  let user: User | undefined;
+  if (userId) {
+    const userResponse = await getUserByID({ serviceConfig, userId });
+    user = userResponse.user;
+  } else if (loginName) {
+    const users = await searchUsers({
+      serviceConfig,
+      searchValue: loginName,
+      loginSettings: loginSettings,
+      organizationId: organization,
+    });
+
+    if (users.result && users.result.length === 1) {
+      const foundUser = users.result[0];
+      userId = foundUser.userId;
+      user = foundUser;
+    } else if (loginSettings?.ignoreUnknownUsernames) {
+      // Prevent enumeration by pretending we found a user
+      userId = UNKNOWN_USER_ID;
     }
   }
 
   return (
-    <div className="relative mx-auto flex w-full max-w-[1200px] flex-row items-center justify-center rounded-2xl bg-transparent p-0 ">
-      <div className="hidden flex-1 flex-col items-end md:flex">
-        <div className="pointer-events-none flex h-[420px] w-full items-end justify-end">
-          <Image
-            src="/firstimage.svg"
-            alt="Left illustration"
-            width={420}
-            height={420}
-            className="h-[320px] w-auto lg:h-[420px] dark:hidden"
-          />
-          <Image
-            src="/first-image-dark.svg"
-            alt="Left illustration dark"
-            width={420}
-            height={420}
-            className="hidden h-[320px] w-auto lg:h-[420px] dark:block"
-          />
-        </div>
-        <div className="mt-2 h-px w-[80%] max-w-[420px] bg-gray-200"></div>
-      </div>
+    <DynamicTheme branding={branding}>
+      <div className="flex flex-col space-y-4">
+        <h1>{session?.factors?.user?.displayName ?? <Translated i18nKey="set.title" namespace="password" />}</h1>
+        <p className="ztdl-p mb-6 block">
+          <Translated i18nKey="set.description" namespace="password" />
+        </p>
 
-      <div className="relative mx-auto w-full max-w-[480px] min-h-[520px] rounded-2xl bg-white p-8 shadow-md ring-1 ring-black/5 dark:bg-neutral-900 dark:text-neutral-100 dark:shadow-xl dark:ring-white/10 sm:p-10">
-        <div className="absolute left-5 top-8 flex items-center gap-2">
-          <BackInline />
-        </div>
-        <div className="mb-3 flex w-full items-center justify-center">
-          <LogoLink />
-        </div>
-        <div className="flex flex-col">
-          <h1 className="mb-1 text-xl font-semibold text-center">
-            <Translated i18nKey="set.title" namespace="password" />
-          </h1>
-          <p className="ztdl-p mb-4 text-center text-sm text-gray-600 dark:text-gray-300">
-            <Translated i18nKey="set.description" namespace="password" />
-          </p>
-
-          {loginName && !session && !loginSettings?.ignoreUnknownUsernames && (
-            <div className="py-4">
-              <Alert>
-                <Translated i18nKey="unknownContext" namespace="error" />
-              </Alert>
-            </div>
-          )}
-
-          {session ? (
-            <div className="mb-4 flex w-full items-center justify-center">
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                {loginName ?? session.factors?.user?.loginName}
-              </span>
-            </div>
-          ) : user ? (
-            <div className="mb-4 flex w-full items-center justify-center">
-              <span className="text-sm text-gray-600 dark:text-gray-300">{user?.preferredLoginName}</span>
-            </div>
-          ) : null}
-
-          {!initial && (
-            <Alert type={AlertType.INFO}>
-              <Translated i18nKey="set.codeSent" namespace="password" />
+        {/* show error only if usernames should be shown to be unknown */}
+        {loginName && !session && !loginSettings?.ignoreUnknownUsernames && (
+          <div className="py-4">
+            <Alert>
+              <Translated i18nKey="unknownContext" namespace="error" />
             </Alert>
-          )}
+          </div>
+        )}
 
-          {passwordComplexity && (loginName ?? user?.preferredLoginName) && (userId ?? session?.factors?.user?.id) ? (
-            <SetPasswordForm
-              code={code}
-              userId={userId ?? (session?.factors?.user?.id as string)}
-              loginName={loginName ?? (user?.preferredLoginName as string)}
-              requestId={requestId}
-              organization={organization}
-              passwordComplexitySettings={passwordComplexity}
-              codeRequired={!(initial === "true")}
-            />
-          ) : (
-            <div className="py-4">
-              <Alert>
-                <Translated i18nKey="failedLoading" namespace="error" />
-              </Alert>
-            </div>
-          )}
-        </div>
+        {session ? (
+          <UserAvatar
+            loginName={loginName ?? session.factors?.user?.loginName}
+            displayName={session.factors?.user?.displayName}
+            showDropdown
+            searchParams={searchParams}
+          ></UserAvatar>
+        ) : loginName ? (
+          <UserAvatar loginName={loginName} displayName={loginName} showDropdown searchParams={searchParams}></UserAvatar>
+        ) : null}
       </div>
 
-      <div className="hidden flex-1 flex-col items-start md:flex">
-        <div className="pointer-events-none flex h-[420px] w-full items-end">
-          <Image
-            src="/secondimage.svg"
-            alt="Right illustration"
-            width={420}
-            height={420}
-            className="h-[320px] w-auto lg:h-[420px] dark:hidden"
+      <div className="w-full">
+        {!initial && (
+          <Alert type={AlertType.INFO}>
+            <Translated i18nKey="set.codeSent" namespace="password" />
+          </Alert>
+        )}
+
+        {passwordComplexity &&
+        (loginName ?? user?.preferredLoginName) &&
+        (userId ?? session?.factors?.user?.id ?? (loginSettings?.ignoreUnknownUsernames ? UNKNOWN_USER_ID : undefined)) ? (
+          <SetPasswordForm
+            code={code}
+            userId={userId ?? (session?.factors?.user?.id as string) ?? UNKNOWN_USER_ID}
+            loginName={loginName ?? (user?.preferredLoginName as string)}
+            requestId={requestId}
+            organization={organization}
+            defaultOrganization={defaultOrganization}
+            passwordComplexitySettings={passwordComplexity}
+            codeRequired={!(initial === "true")}
           />
-          <Image
-            src="/second-image-dark.svg"
-            alt="Right illustration dark"
-            width={420}
-            height={420}
-            className="hidden h-[320px] w-auto lg:h-[420px] dark:block"
-          />
-        </div>
-        <div className="mt-2 h-px w-[80%] max-w-[420px] bg-gray-200"></div>
+        ) : (
+          <div className="py-4">
+            <Alert>
+              <Translated i18nKey="failedLoading" namespace="error" />
+            </Alert>
+          </div>
+        )}
       </div>
-    </div>
+    </DynamicTheme>
   );
 }

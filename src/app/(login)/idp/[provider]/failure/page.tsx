@@ -3,13 +3,8 @@ import { ChooseAuthenticatorToLogin } from "@/components/choose-authenticator-to
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
-import { getServiceUrlFromHeaders } from "@/lib/service-url";
-import {
-  getBrandingSettings,
-  getLoginSettings,
-  getUserByID,
-  listAuthenticationMethodTypes,
-} from "@/lib/zitadel";
+import { getServiceConfig } from "@/lib/service-url";
+import { getBrandingSettings, getLoginSettings, getUserByID, listAuthenticationMethodTypes } from "@/lib/zitadel";
 import { HumanUser, User } from "@zitadel/proto/zitadel/user/v2/user_pb";
 import { AuthenticationMethodType } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
 import { headers } from "next/headers";
@@ -23,17 +18,11 @@ export default async function Page(props: {
   const { organization, userId } = searchParams;
 
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
-  const branding = await getBrandingSettings({
-    serviceUrl,
-    organization,
-  });
+  const branding = await getBrandingSettings({ serviceConfig, organization });
 
-  const loginSettings = await getLoginSettings({
-    serviceUrl,
-    organization,
-  });
+  const loginSettings = await getLoginSettings({ serviceConfig, organization });
 
   let authMethods: AuthenticationMethodType[] = [];
   let user: User | undefined = undefined;
@@ -48,10 +37,7 @@ export default async function Page(props: {
   }
 
   if (userId) {
-    const userResponse = await getUserByID({
-      serviceUrl,
-      userId,
-    });
+    const userResponse = await getUserByID({ serviceConfig, userId });
     if (userResponse) {
       user = userResponse.user;
       if (user?.type.case === "human") {
@@ -63,10 +49,7 @@ export default async function Page(props: {
       }
     }
 
-    const authMethodsResponse = await listAuthenticationMethodTypes({
-      serviceUrl,
-      userId,
-    });
+    const authMethodsResponse = await listAuthenticationMethodTypes({ serviceConfig, userId });
     if (authMethodsResponse.authMethodTypes) {
       authMethods = authMethodsResponse.authMethodTypes;
     }
@@ -74,10 +57,13 @@ export default async function Page(props: {
 
   return (
     <DynamicTheme branding={branding}>
-      <div className="flex flex-col items-center space-y-4">
+      <div className="flex flex-col space-y-4">
         <h1>
           <Translated i18nKey="loginError.title" namespace="idp" />
         </h1>
+      </div>
+
+      <div className="w-full">
         <Alert type={AlertType.ALERT}>
           <Translated i18nKey="loginError.description" namespace="idp" />
         </Alert>

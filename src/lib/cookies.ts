@@ -3,6 +3,9 @@
 import { timestampDate, timestampFromMs } from "@zitadel/client";
 import { cookies } from "next/headers";
 import { LANGUAGE_COOKIE_NAME } from "./i18n";
+import { createLogger } from "./logger";
+
+const logger = createLogger("cookies");
 
 // TODO: improve this to handle overflow
 const MAX_COOKIE_SIZE = 2048;
@@ -23,15 +26,15 @@ type SessionCookie<T> = Cookie & T;
 async function setSessionHttpOnlyCookie<T>(sessions: SessionCookie<T>[], iFrameEnabled: boolean = false) {
   const cookiesList = await cookies();
 
-  // Use "none" for iframe compatibility, otherwise "strict" as default
+  // "none" is required for iframe embedding (with secure flag)
   let resolvedSameSite: "lax" | "strict" | "none";
 
   if (iFrameEnabled) {
     // When embedded in iframe, must use "none" with secure flag
     resolvedSameSite = "none";
   } else {
-    // Production and other environments: use strict for better security
-    resolvedSameSite = "strict";
+    // This allows cookies during top-level navigation while blocking cross-origin requests
+    resolvedSameSite = "lax";
   }
 
   return cookiesList.set({
@@ -53,6 +56,12 @@ export async function setLanguageCookie(language: string) {
     httpOnly: true,
     path: "/",
   });
+}
+
+export async function getLanguageCookie(): Promise<string | undefined> {
+  const cookiesList = await cookies();
+  const languageCookie = cookiesList.get(LANGUAGE_COOKIE_NAME);
+  return languageCookie?.value;
 }
 
 export async function addSessionToCookie<T>({
@@ -77,7 +86,7 @@ export async function addSessionToCookie<T>({
     const temp = [...currentSessions, session];
 
     if (JSON.stringify(temp).length >= MAX_COOKIE_SIZE) {
-      console.log("WARNING COOKIE OVERFLOW");
+      logger.warn("WARNING COOKIE OVERFLOW");
       // TODO: improve cookie handling
       // this replaces the first session (oldest) with the new one
       currentSessions = [session].concat(currentSessions.slice(1));
@@ -127,7 +136,7 @@ export async function updateSessionCookie<T>({
       return setSessionHttpOnlyCookie(sessions, iFrameEnabled);
     }
   } else {
-    throw "updateSessionCookie<T>: session id now found";
+    throw "updateSessionCookie<T>: session id not found";
   }
 }
 
@@ -157,7 +166,7 @@ export async function removeSessionFromCookie<T>({
   }
 }
 
-export async function getMostRecentSessionCookie<T>(): Promise<Cookie> {
+export async function getMostRecentSessionCookie<T>(): Promise<Cookie | undefined> {
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
@@ -170,7 +179,7 @@ export async function getMostRecentSessionCookie<T>(): Promise<Cookie> {
 
     return latest;
   } else {
-    return Promise.reject("no session cookie found");
+    return undefined;
   }
 }
 
@@ -180,7 +189,7 @@ export async function getSessionCookieById<T>({
 }: {
   sessionId: string;
   organization?: string;
-}): Promise<SessionCookie<T>> {
+}): Promise<SessionCookie<T> | undefined> {
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
@@ -193,10 +202,10 @@ export async function getSessionCookieById<T>({
     if (found) {
       return found;
     } else {
-      return Promise.reject();
+      return undefined;
     }
   } else {
-    return Promise.reject();
+    return undefined;
   }
 }
 
@@ -206,23 +215,18 @@ export async function getSessionCookieByLoginName<T>({
 }: {
   loginName?: string;
   organization?: string;
-}): Promise<SessionCookie<T>> {
+}): Promise<SessionCookie<T> | undefined> {
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
-  if (stringifiedCookie?.value) {
-    const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie?.value);
-    const found = sessions.find((s) =>
-      organization ? s.organization === organization && s.loginName === loginName : s.loginName === loginName,
-    );
-    if (found) {
-      return found;
-    } else {
-      return Promise.reject("no cookie found with loginName: " + loginName);
-    }
-  } else {
-    return Promise.reject("no session cookie found");
+  if (!stringifiedCookie?.value) {
+    return undefined;
   }
+
+  const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie.value);
+  return sessions.find((s) =>
+    organization ? s.organization === organization && s.loginName === loginName : s.loginName === loginName,
+  );
 }
 
 /**
@@ -234,22 +238,22 @@ export async function getAllSessionCookieIds<T>(cleanup: boolean = false): Promi
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
-  if (stringifiedCookie?.value) {
-    const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie?.value);
-
-    if (cleanup) {
-      const now = new Date();
-      return sessions
-        .filter((session) =>
-          session.expirationTs ? timestampDate(timestampFromMs(Number(session.expirationTs))) > now : true,
-        )
-        .map((session) => session.id);
-    } else {
-      return sessions.map((session) => session.id);
-    }
-  } else {
+  if (!stringifiedCookie?.value) {
     return [];
   }
+
+  const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie.value);
+
+  if (cleanup) {
+    const now = new Date();
+    return sessions
+      .filter((session) =>
+        session.expirationTs ? timestampDate(timestampFromMs(Number(session.expirationTs))) > now : true,
+      )
+      .map((session) => session.id);
+  }
+
+  return sessions.map((session) => session.id);
 }
 
 /**
@@ -261,20 +265,21 @@ export async function getAllSessions<T>(cleanup: boolean = false): Promise<Sessi
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
-  if (stringifiedCookie?.value) {
-    const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie?.value);
-
-    if (cleanup) {
-      const now = new Date();
-      return sessions.filter((session) =>
-        session.expirationTs ? timestampDate(timestampFromMs(Number(session.expirationTs))) > now : true,
-      );
-    } else {
-      return sessions;
-    }
-  } else {
+  if (!stringifiedCookie?.value) {
+    logger.info("getAllSessions: No session cookie found, returning empty array");
     return [];
   }
+
+  const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie.value);
+
+  if (cleanup) {
+    const now = new Date();
+    return sessions.filter((session) =>
+      session.expirationTs ? timestampDate(timestampFromMs(Number(session.expirationTs))) > now : true,
+    );
+  }
+
+  return sessions;
 }
 
 /**
@@ -293,31 +298,27 @@ export async function getMostRecentCookieWithLoginname<T>({
   const cookiesList = await cookies();
   const stringifiedCookie = cookiesList.get("sessions");
 
-  if (stringifiedCookie?.value) {
-    const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie?.value);
-    let filtered = sessions.filter((cookie) => {
-      return loginName ? cookie.loginName === loginName : true;
-    });
-
-    if (organization) {
-      filtered = filtered.filter((cookie) => {
-        return cookie.organization === organization;
-      });
-    }
-
-    const latest =
-      filtered && filtered.length
-        ? filtered.reduce((prev, current) => {
-            return prev.changeTs > current.changeTs ? prev : current;
-          })
-        : undefined;
-
-    if (latest) {
-      return latest;
-    } else {
-      return Promise.reject("Could not get the context or retrieve a session");
-    }
-  } else {
-    return Promise.reject("Could not read session cookie");
+  if (!stringifiedCookie?.value) {
+    return undefined;
   }
+
+  const sessions: SessionCookie<T>[] = JSON.parse(stringifiedCookie.value);
+
+  let filtered = sessions;
+
+  if (loginName) {
+    filtered = filtered.filter((cookie) => cookie.loginName === loginName);
+  }
+
+  if (organization) {
+    filtered = filtered.filter((cookie) => cookie.organization === organization);
+  }
+
+  if (!filtered || !filtered.length) {
+    return undefined;
+  }
+
+  return filtered.reduce((prev, current) => {
+    return prev.changeTs > current.changeTs ? prev : current;
+  });
 }

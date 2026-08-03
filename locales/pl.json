@@ -35,6 +35,29 @@
     },
     "required": {
       "loginName": "To pole jest wymagane"
+    },
+    "errors": {
+      "internalError": "Wystąpił błąd wewnętrzny",
+      "couldNotGetLoginSettings": "Nie udało się pobrać ustawień logowania",
+      "couldNotSearchUsers": "Nie udało się wyszukać użytkowników",
+      "couldNotGetDomain": "Nie udało się pobrać domeny",
+      "couldNotGetHost": "Nie udało się pobrać hosta",
+      "couldNotStartIDPFlow": "Nie udało się rozpocząć procesu IDP",
+      "moreThanOneUserFound": "Znaleziono więcej niż jednego użytkownika. Podaj unikalny identyfikator.",
+      "userNotFound": "Użytkownik nie został znaleziony w systemie",
+      "couldNotCreateSession": "Nie udało się utworzyć sesji dla użytkownika",
+      "initialUserNotSupported": "Użytkownik inicjalny nie jest obsługiwany",
+      "localAuthenticationNotAllowed": "Uwierzytelnianie lokalne nie jest dozwolone! Skontaktuj się z administratorem, aby uzyskać więcej informacji.",
+      "passkeysNotAllowed": "Klucze dostępu są niedozwolone! Skontaktuj się z administratorem, aby uzyskać więcej informacji.",
+      "couldNotFindIdentityProvider": "Nie udało się znaleźć dostawcy tożsamości.",
+      "userNotActive": "Użytkownik jest nieaktywny. Skontaktuj się z administratorem, aby uzyskać więcej informacji."
+    }
+  },
+  "zitadel": {
+    "errors": {
+      "errorOccured": "Wystąpił błąd",
+      "multipleUsersFound": "Znaleziono wielu użytkowników",
+      "userNotFound": "Użytkownik nie został znaleziony w systemie"
     }
   },
   "password": {
@@ -48,12 +71,19 @@
       },
       "required": {
         "password": "To pole jest wymagane"
+      },
+      "errors": {
+        "couldNotVerifyPassword": "Nie można zweryfikować hasła",
+        "couldNotResetPassword": "Nie można zresetować hasła"
+      },
+      "info": {
+        "passwordResetSent": "Hasło zostało zresetowane. Sprawdź swoją pocztę e-mail"
       }
     },
     "set": {
       "title": "Ustaw hasło",
       "description": "Ustaw hasło dla swojego konta",
-      "codeSent": "Kod został wysłany na twój adres e-mail.",
+      "codeSent": "Nowy kod został wysłany na Twój adres e-mail.",
       "noCodeReceived": "Nie otrzymałeś kodu?",
       "resend": "Wyślij kod ponownie",
       "submit": "Kontynuuj",
@@ -66,6 +96,11 @@
         "code": "To pole jest wymagane",
         "newPassword": "Musisz podać hasło!",
         "confirmPassword": "To pole jest wymagane"
+      },
+      "errors": {
+        "couldNotSetPassword": "Nie można ustawić hasła",
+        "couldNotResetPassword": "Nie można zresetować hasła",
+        "couldNotVerifyPassword": "Nie można zweryfikować hasła"
       }
     },
     "change": {
@@ -73,13 +108,51 @@
       "description": "Ustaw nowe hasło dla swojego konta",
       "submit": "Kontynuuj",
       "labels": {
+        "currentPassword": "Aktualne hasło",
         "newPassword": "Nowe hasło",
         "confirmPassword": "Potwierdź nowe hasło"
       },
       "required": {
+        "currentPassword": "Musisz podać aktualne hasło!",
         "newPassword": "Musisz podać nowe hasło!",
         "confirmPassword": "To pole jest wymagane"
+      },
+      "errors": {
+        "currentPasswordInvalid": "Aktualne hasło jest nieprawidłowe.",
+        "couldNotChangePassword": "Nie można zmienić hasła",
+        "couldNotVerifyPassword": "Nie można zweryfikować hasła",
+        "unknownError": "Nieznany błąd"
       }
+    },
+    "complexity": {
+      "length": "Musi zawierać co najmniej {minLength} znaków.",
+      "hasSymbol": "Musi zawierać symbol.",
+      "hasNumber": "Musi zawierać numer.",
+      "hasUppercase": "Musi zawierać dużą literę.",
+      "hasLowercase": "Musi zawierać małą literę.",
+      "equals": "Potwierdzenie hasła pasuje.",
+      "matches": "Pasuje",
+      "doesNotMatch": "Nie pasuje"
+    },
+    "errors": {
+      "noHostFound": "Nie znaleziono hosta",
+      "couldNotSendResetLink": "Nie można wysłać linku do resetowania hasła",
+      "couldNotCreateSessionForUser": "Nie można utworzyć sesji dla użytkownika",
+      "couldNotVerifyPassword": "Nie można zweryfikować hasła",
+      "failedToAuthenticate": "Uwierzytelnianie nie powiodło się. Wykorzystałeś {failedAttempts} z {maxPasswordAttempts} prób wprowadzenia hasła.{lockoutMessage}",
+      "failedToAuthenticateNoLimit": "Uwierzytelnianie nie powiodło się.",
+      "accountLockedContactAdmin": " Skontaktuj się z administratorem, aby odblokować konto",
+      "userNotFound": "Użytkownik nie został znaleziony w systemie",
+      "initialUserNotSupported": "Użytkownik początkowy nie jest obsługiwany",
+      "userInitialStateNotSupported": "Początkowy stan użytkownika nie jest obsługiwany",
+      "codeOrVerificationRequired": "Musisz podać kod lub mieć ważną weryfikację użytkownika",
+      "verificationRequired": "Wymagana jest weryfikacja użytkownika",
+      "couldNotLoadSession": "Nie można załadować sesji",
+      "couldNotLoadAuthMethods": "Nie można załadować metod uwierzytelniania",
+      "failedPrecondition": "Nie spełniono warunków wstępnych",
+      "sessionNotValid": "Sesja jest nieważna",
+      "passwordVerificationMissing": "Brak weryfikacji hasła.",
+      "passwordVerificationTooOld": "Weryfikacja hasła jest przestarzała. Proszę zweryfikować hasło ponownie."
     }
   },
   "idp": {
@@ -91,18 +164,6 @@
     "signInWithAzureAD": "Zaloguj się przez AzureAD",
     "signInWithGithub": "Zaloguj się przez GitHub",
     "signInWithGitlab": "Zaloguj się przez GitLab",
-    "loginSuccess": {
-      "title": "Logowanie udane",
-      "description": "Zostałeś pomyślnie zalogowany!"
-    },
-    "linkingSuccess": {
-      "title": "Konto powiązane",
-      "description": "Pomyślnie powiązałeś swoje konto!"
-    },
-    "registerSuccess": {
-      "title": "Rejestracja udana",
-      "description": "Pomyślnie się zarejestrowałeś!"
-    },
     "loginError": {
       "title": "Logowanie nieudane",
       "description": "Wystąpił błąd podczas próby logowania."
@@ -114,6 +175,35 @@
     "completeRegister": {
       "title": "Ukończ rejestrację",
       "description": "Ukończ rejestrację swojego konta."
+    },
+    "accountNotFound": {
+      "title": "Nie znaleziono konta",
+      "description": "Nie mogliśmy znaleźć konta powiązanego z danymi logowania Twojego dostawcy tożsamości.",
+      "info": "Nie znaleziono istniejącego konta. Zaloguj się przy użyciu istniejącego konta lub skontaktuj się z administratorem w celu uzyskania pomocy.",
+      "backToLogin": "Powrót do logowania"
+    },
+    "registrationFailed": {
+      "title": "Rejestracja niedostępna",
+      "description": "Nie mogliśmy ukończyć procesu rejestracji.",
+      "info": "Nie można określić organizacji do rejestracji. Skontaktuj się z administratorem w celu uzyskania pomocy.",
+      "backToLogin": "Powrót do logowania"
+    },
+    "processing": {
+      "message": "Przetwarzanie uwierzytelniania...",
+      "noRedirect": "Nie otrzymano przekierowania ani błędu z serwera",
+      "unexpectedError": "Wystąpił nieoczekiwany błąd"
+    },
+    "errors": {
+      "missingParameters": "Brakuje wymaganych parametrów",
+      "missingIdpInfo": "Brak informacji IDP",
+      "idpNotFound": "Dostawca tożsamości nie znaleziony",
+      "linkingNotAllowed": "Łączenie nie jest dozwolone dla tego dostawcy tożsamości",
+      "linkingFailed": "Nie udało się połączyć dostawcy tożsamości z kontem",
+      "autoLinkingFailed": "Nie udało się automatycznie połączyć konta",
+      "userCreationFailed": "Nie udało się utworzyć konta użytkownika",
+      "orgResolutionFailed": "Nie można określić organizacji do rejestracji",
+      "sessionCreationFailed": "Nie można utworzyć sesji lub określić przekierowania",
+      "unknownError": "Wystąpił nieznany błąd"
     }
   },
   "ldap": {
@@ -177,14 +267,27 @@
       "title": "Uwierzytelnij się za pomocą klucza dostępu",
       "description": "Twoje urządzenie poprosi o użycie odcisku palca, rozpoznawania twarzy lub blokady ekranu.",
       "usePassword": "Użyj hasła",
-      "submit": "Kontynuuj"
+      "submit": "Kontynuuj",
+      "errors": {
+        "couldNotRequestChallenge": "Nie można zażądać wyzwania klucza dostępu",
+        "couldNotVerifyPasskey": "Nie można zweryfikować klucza dostępu",
+        "noResponseReceived": "Weryfikacja klucza dostępu nie powiodła się - nie otrzymano odpowiedzi",
+        "noRedirectProvided": "Weryfikacja klucza dostępu zakończona, ale nie podano przekierowania",
+        "couldNotRetrievePasskey": "Wystąpił błąd podczas pobierania klucza dostępu",
+        "verificationCancelled": "Weryfikacja klucza dostępu została anulowana",
+        "verificationFailed": "Wystąpił błąd podczas weryfikacji klucza dostępu",
+        "couldNotFindSession": "Nie można znaleźć sesji",
+        "couldNotUpdateSession": "Nie można zaktualizować sesji",
+        "userNotFound": "Użytkownik nie znaleziony w systemie",
+        "couldNotDetermineRedirect": "Nie można określić adresu URL przekierowania po weryfikacji klucza dostępu"
+      }
     },
     "set": {
       "title": "Skonfiguruj klucz dostępu",
       "description": "Twoje urządzenie poprosi o użycie odcisku palca, rozpoznawania twarzy lub blokady ekranu.",
       "info": {
         "description": "Klucz dostępu to metoda uwierzytelniania na urządzeniu, wykorzystująca np. odcisk palca, Apple FaceID lub podobne rozwiązania.",
-        "link": "Uwierzytelnianie bez hasła"
+        "link": "Uwierzytelnianie kluczem dostępu"
       },
       "skip": "Pomiń",
       "submit": "Kontynuuj"
@@ -215,7 +318,7 @@
       "description": "Podaj e-mail, imię i nazwisko, aby się zarejestrować."
     },
     "title": "Rejestracja",
-    "description": "Utwórz konto ZITADEL.",
+    "description": "Utwórz konto Zitadel.",
     "noMethodAvailableWarning": "Brak dostępnych metod uwierzytelniania. Skontaktuj się z administratorem.",
     "selectMethod": "Wybierz metodę uwierzytelniania, której chcesz użyć",
     "agreeTo": "Aby się zarejestrować, musisz zaakceptować warunki korzystania",
@@ -244,6 +347,13 @@
       "firstname": "To pole jest wymagane",
       "lastname": "To pole jest wymagane",
       "email": "To pole jest wymagane"
+    },
+    "errors": {
+      "couldNotCreateUser": "Nie udało się utworzyć użytkownika",
+      "couldNotCreateSession": "Nie udało się utworzyć sesji",
+      "userNotFound": "Nie znaleziono użytkownika w systemie",
+      "couldNotLinkIDP": "Nie udało się powiązać IDP z użytkownikiem",
+      "couldNotRegisterUser": "Nie udało się zarejestrować użytkownika"
     }
   },
   "invite": {
@@ -273,6 +383,7 @@
     "userIdMissing": "Nie podano identyfikatora użytkownika!",
     "successTitle": "Weryfikacja zakończona",
     "successDescription": "Użytkownik został pomyślnie zweryfikowany.",
+    "successContinue": "Kontynuuj",
     "setupAuthenticator": "Skonfiguruj uwierzytelnianie",
     "verify": {
       "title": "Zweryfikuj użytkownika",
@@ -287,6 +398,22 @@
       "required": {
         "code": "To pole jest wymagane"
       }
+    },
+    "errors": {
+      "couldNotResendEmail": "Nie udało się ponownie wysłać wiadomości e-mail",
+      "couldNotVerifyUser": "Nie udało się zweryfikować użytkownika",
+      "couldNotVerifyInvite": "Nie udało się zweryfikować zaproszenia",
+      "couldNotVerifyEmail": "Nie udało się zweryfikować adresu e-mail",
+      "couldNotVerify": "Nie udało się zweryfikować",
+      "couldNotLoadUser": "Nie udało się załadować użytkownika",
+      "couldNotLoadAuthenticators": "Nie udało się wczytać dostępnych metod uwierzytelniania",
+      "couldNotCreateSession": "Nie udało się utworzyć sesji",
+      "noHostFound": "Nie znaleziono hosta",
+      "userAlreadyVerified": "Użytkownik jest już zweryfikowany!",
+      "couldNotResendInvite": "Nie udało się ponownie wysłać zaproszenia",
+      "inviteSendFailed": "Nie udało się wysłać wiadomości e-mail z zaproszeniem",
+      "emailSendFailed": "Nie udało się wysłać wiadomości e-mail weryfikacyjnej",
+      "contextMissing": "Wystąpił błąd. Spróbuj ponownie."
     }
   },
   "authenticator": {
@@ -328,6 +455,7 @@
     "unknownContext": "Nie udało się pobrać kontekstu użytkownika. Upewnij się, że najpierw wprowadziłeś nazwę użytkownika lub podałeś login jako parametr wyszukiwania.",
     "sessionExpired": "Twoja sesja wygasła. Zaloguj się ponownie.",
     "failedLoading": "Nie udało się załadować danych. Spróbuj ponownie.",
-    "tryagain": "Spróbuj ponownie"
+    "tryagain": "Spróbuj ponownie",
+    "couldNotContinueSession": "Nie udało się kontynuować sesji - brak informacji o użytkowniku"
   }
 }

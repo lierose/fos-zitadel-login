@@ -1,15 +1,20 @@
 import "@/styles/globals.scss";
 
+import { BackgroundWrapper } from "@/components/background-wrapper";
 import { LanguageProvider } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { Spinner } from "@/components/spinner";
-import { Theme } from "@/components/theme";
+import { Skeleton } from "@/components/skeleton";
 import { ThemeProvider } from "@/components/theme-provider";
+import ThemeSwitch from "@/components/theme-switch";
+import { LANGS, getLanguage } from "@/lib/i18n";
+import { getServiceConfig } from "@/lib/service-url";
+import { getAllowedLanguages } from "@/lib/zitadel";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { Lato } from "next/font/google";
-import { ReactNode, Suspense } from "react";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { Lato } from "next/font/google";
+import { headers } from "next/headers";
+import React, { Suspense } from "react";
 
 const lato = Lato({
   weight: ["400", "700", "900"],
@@ -21,7 +26,22 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("title") };
 }
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const _headers = await headers();
+  const { serviceConfig } = getServiceConfig(_headers);
+
+  let languages = LANGS;
+  try {
+    const settings = await getAllowedLanguages({ serviceConfig });
+    if (settings.allowedLanguages?.length) {
+      languages = settings.allowedLanguages
+        .filter((code) => LANGS.find((l) => l.code === code))
+        .map((code) => getLanguage(code));
+    }
+  } catch (e) {
+    console.error("Failed to load supported languages", e);
+  }
+
   return (
     <html className={`${lato.className}`} suppressHydrationWarning>
       <head />
@@ -30,25 +50,32 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <Tooltip.Provider>
             <Suspense
               fallback={
-                <div
-                  className={`relative flex min-h-screen flex-col justify-center bg-background-light-400 dark:bg-background-dark-600`}
+                <BackgroundWrapper
+                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
                 >
-                  <div className="relative mx-auto flex w-full max-w-[1100px] flex-col items-center py-16">
-                    <Spinner className="h-10 w-10" />
+                  <div className="relative mx-auto w-full max-w-[440px] py-8">
+                    <Skeleton>
+                      <div className="h-40"></div>
+                    </Skeleton>
+                    <div className="flex flex-row items-center justify-end space-x-4 py-4">
+                      <ThemeSwitch />
+                    </div>
                   </div>
-                </div>
+                </BackgroundWrapper>
               }
             >
               <LanguageProvider>
-                <div className="relative flex h-screen flex-col overflow-hidden bg-background-light-500 dark:bg-background-dark-700">
-                  <div className="flex flex-row items-center justify-end space-x-4 p-4">
-                    <LanguageSwitcher />
-                    <Theme />
+                <BackgroundWrapper
+                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
+                >
+                  <div className="relative mx-auto w-full max-w-[1100px] py-8">
+                    <div>{children}</div>
+                    <div className="mx-auto flex max-w-[440px] flex-row items-center justify-end space-x-4 px-4 py-4 md:max-w-full md:px-8">
+                      <LanguageSwitcher languages={languages} />
+                      <ThemeSwitch />
+                    </div>
                   </div>
-                  <div className="flex flex-1 items-center justify-center">
-                    <div className="relative mx-auto w-full max-w-[1200px] px-4">{children}</div>
-                  </div>
-                </div>
+                </BackgroundWrapper>
               </LanguageProvider>
             </Suspense>
           </Tooltip.Provider>

@@ -2,19 +2,15 @@
 
 import { authorizeOrDenyDeviceAuthorization } from "@/lib/zitadel";
 import { headers } from "next/headers";
-import { getServiceUrlFromHeaders } from "../service-url";
+import { getServiceConfig } from "../service-url";
 
 export async function completeDeviceAuthorization(
   deviceAuthorizationId: string,
   session?: { sessionId: string; sessionToken: string },
 ) {
   const _headers = await headers();
-  const { serviceUrl } = getServiceUrlFromHeaders(_headers);
+  const { serviceConfig } = getServiceConfig(_headers);
 
   // without the session, device auth request is denied
-  return authorizeOrDenyDeviceAuthorization({
-    serviceUrl,
-    deviceAuthorizationId,
-    session,
-  });
+  return authorizeOrDenyDeviceAuthorization({ serviceConfig, deviceAuthorizationId, session });
 }
