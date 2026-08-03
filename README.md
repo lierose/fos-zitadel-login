@@ -37,14 +37,16 @@ make smoke
 
 The container exposes port 3000 and provides `/healthy` and `/ready` probes.
 
-The default image reference is `registry.liero.se/ifa-zitadel-login-v2:latest` (a slash is required between registry and repository). Builds also receive an immutable `git-<sha>` tag. Override the defaults when needed:
+The default image reference is `registry.liero.se/ifa-zitadel-login-v2:latest` (a slash is required between registry and repository). Local builds also receive an architecture-specific `git-<sha>-<arch>` tag. Override the defaults when needed:
 
 ```sh
 make image TAG=v4.16.2 PLATFORM=linux/amd64
-make push TAG=v4.16.2 PLATFORM=linux/amd64
+make image-arm64 TAG=v4.16.2
+make smoke-arm64 TAG=v4.16.2
+make push TAG=v4.16.2
 ```
 
-`make push` requires an authenticated Docker client and pushes both the selected tag and the Git SHA tag.
+`make push` requires an authenticated Docker client. It builds a multi-architecture manifest for `linux/amd64` and `linux/arm64`, then pushes both the selected tag and the Git SHA tag. Override `PLATFORMS` to change that set.
 
 ## ZITADEL Login V2 URL
 
