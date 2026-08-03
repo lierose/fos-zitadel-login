@@ -1,7 +1,10 @@
 FROM node:24-alpine AS build
 
+ARG NEXT_PUBLIC_BASE_PATH=
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ENV NEXT_PUBLIC_BASE_PATH="$NEXT_PUBLIC_BASE_PATH"
 RUN npm install --global pnpm@10.28.2
 
 WORKDIR /app
@@ -15,6 +18,7 @@ FROM node:24-alpine AS login-standalone
 
 ARG VERSION=dev
 ARG REVISION=unknown
+ARG NEXT_PUBLIC_BASE_PATH=
 
 LABEL org.opencontainers.image.title="IFA ZITADEL Login V2" \
     org.opencontainers.image.description="Standalone FOS login UI for ZITADEL" \
@@ -36,6 +40,7 @@ EXPOSE 3000
 ENV HOSTNAME="::" \
     PORT="3000" \
     NODE_ENV="production" \
+    NEXT_PUBLIC_BASE_PATH="$NEXT_PUBLIC_BASE_PATH" \
     NODE_OPTIONS="--use-openssl-ca --require /app/load-ssl-cert-dir.cjs" \
     SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" \
     ZITADEL_TLS_ENABLED="false" \

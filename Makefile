@@ -4,6 +4,7 @@ IMAGE ?= registry.liero.se/ifa-zitadel-login-v2
 TAG ?= latest
 PLATFORM ?= linux/amd64
 PLATFORMS ?= linux/amd64,linux/arm64
+BASE_PATH ?= /ui/v2/login
 SMOKE_PORT ?= 3100
 PNPM ?= npx --yes pnpm@10.28.2
 
@@ -23,10 +24,10 @@ help:
 	@echo "make image         Build $(IMAGE_REF) for $(PLATFORM)"
 	@echo "make image-amd64   Build a local $(TAG)-amd64 image"
 	@echo "make image-arm64   Build a local $(TAG)-arm64 image"
-	@echo "make smoke         Verify root health routes and rejected legacy prefixes"
+	@echo "make smoke         Verify health routes for the selected base path"
 	@echo "make smoke-arm64   Build and smoke-test the local ARM64 image"
 	@echo "make push          Build and push one multi-arch tag for $(PLATFORMS)"
-	@echo "Overrides: TAG=<tag> PLATFORM=<platform> PLATFORMS=<list> IMAGE=<registry/repository>"
+	@echo "Overrides: TAG=<tag> PLATFORM=<platform> PLATFORMS=<list> BASE_PATH=</prefix> IMAGE=<registry/repository>"
 
 install:
 	$(PNPM) install --frozen-lockfile
@@ -45,6 +46,7 @@ build: image
 image:
 	docker buildx build \
 		--platform $(PLATFORM) \
+		--build-arg NEXT_PUBLIC_BASE_PATH=$(BASE_PATH) \
 		--build-arg VERSION=$(TAG) \
 		--build-arg REVISION=$(GIT_SHA) \
 		--tag $(IMAGE_REF) \
@@ -61,6 +63,7 @@ image-arm64:
 push:
 	docker buildx build \
 		--platform $(PLATFORMS) \
+		--build-arg NEXT_PUBLIC_BASE_PATH=$(BASE_PATH) \
 		--build-arg VERSION=$(TAG) \
 		--build-arg REVISION=$(GIT_SHA) \
 		--tag $(IMAGE_REF) \
@@ -78,13 +81,14 @@ smoke: image clean-smoke
 			--env ZITADEL_SERVICE_USER_TOKEN=smoke-test-only \
 			$(IMAGE_REF) >/dev/null; \
 		trap 'docker container rm --force $(SMOKE_CONTAINER) >/dev/null 2>&1 || true' EXIT INT TERM; \
+		base_path='$(BASE_PATH)'; \
 		curl --retry 15 --retry-all-errors --retry-delay 1 --fail --silent \
-			http://127.0.0.1:$(SMOKE_PORT)/healthy >/dev/null; \
-		test "$$(curl --silent --output /dev/null --write-out '%{http_code}' \
-			http://127.0.0.1:$(SMOKE_PORT)/ui/v2/login/healthy)" = "404"; \
-		test "$$(curl --silent --output /dev/null --write-out '%{http_code}' \
-			http://127.0.0.1:$(SMOKE_PORT)/v2/login/healthy)" = "404"; \
-		echo "Root /healthy is ready; legacy /ui/v2/login and /v2/login prefixes are not served."
+			http://127.0.0.1:$(SMOKE_PORT)$${base_path}/healthy >/dev/null; \
+		if [ -n "$${base_path}" ]; then \
+			test "$$(curl --silent --output /dev/null --write-out '%{http_code}' \
+				http://127.0.0.1:$(SMOKE_PORT)/healthy)" = "404"; \
+		fi; \
+		echo "$${base_path:-/} health route is ready."
 
 smoke-arm64:
 	$(MAKE) smoke PLATFORM=linux/arm64 TAG=$(TAG)-arm64

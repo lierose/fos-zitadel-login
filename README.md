@@ -21,7 +21,11 @@ Configure `ZITADEL_API_URL` and one supported login-client credential in `.env.l
 - `NEXT_PUBLIC_FOS_URL` and optional `NEXT_PUBLIC_FOS_NAME`
 - `NEXT_PUBLIC_APP2_URL` and optional `NEXT_PUBLIC_APP2_NAME`
 
-The UI is served from `/` by default. Set `NEXT_PUBLIC_BASE_PATH` at build time only when it must be mounted below another path.
+Direct Docker builds serve the UI from `/` by default. The Makefile defaults
+`BASE_PATH` to IFA's `/ui/v2/login` deployment path. This passes
+`NEXT_PUBLIC_BASE_PATH` into the Next.js build; setting it only when the
+container starts cannot change the compiled routes. Use `BASE_PATH=` explicitly
+for a root-mounted image.
 
 ## Verification and container
 
@@ -41,6 +45,7 @@ The default image reference is `registry.liero.se/ifa-zitadel-login-v2:latest` (
 
 ```sh
 make image TAG=v4.16.2 PLATFORM=linux/amd64
+make image TAG=v4.16.2 BASE_PATH=
 make image-arm64 TAG=v4.16.2
 make smoke-arm64 TAG=v4.16.2
 make push TAG=v4.16.2
@@ -50,7 +55,10 @@ make push TAG=v4.16.2
 
 ## ZITADEL Login V2 URL
 
-This standalone image is built for the URL root. `NEXT_PUBLIC_BASE_PATH` is empty, the probes are `/healthy` and `/ready`, and neither `/ui/v2/login` nor `/v2/login` is served by the container.
+Makefile-built images use `BASE_PATH=/ui/v2/login` unless overridden. A direct
+Docker build or `make image BASE_PATH=` serves `/healthy` and `/ready` at the
+root; the normal IFA build serves those probes and all login routes below
+`/ui/v2/login`.
 
 Configure the ZITADEL instance-level Login V2 feature `BaseURI`, or the application's custom Login V2 base URL, to the full public root URL of this service. For example:
 

@@ -19,3 +19,9 @@ This repository is a standalone fork of ZITADEL's `apps/login`. Authentication l
 - Unit tests: `pnpm test-unit`
 - Production build: `pnpm build`
 - Container: `docker build -t fos-zitadel-login .`
+
+## Changelog discipline
+
+- Keep `docs/releases/unreleased.md` updated in the same change whenever code is modified.
+- Stage the release-note entry with the code and prefer `boo commit` so commit messages follow repository conventions.
+- For changes that intentionally do not need release notes, use `boo commit -m "subject"` with an explicit subject.

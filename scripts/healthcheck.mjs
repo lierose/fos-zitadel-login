@@ -9,7 +9,9 @@ if (process.env.ZITADEL_FIPS_REQUIRED === "true" && getFips() !== 1) {
 
 const scheme = process.env.ZITADEL_TLS_ENABLED === "true" ? "https" : "http";
 const port = process.env.PORT || "3000";
-const url = new URL(process.argv[2] || `/healthy`, `${scheme}://localhost:${port}`);
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const probePath = process.argv[2] || `/healthy`;
+const url = new URL(`${basePath}${probePath}`, `${scheme}://localhost:${port}`);
 
 const get = scheme === "https" ? https.get : http.get;
 
