@@ -33,7 +33,7 @@ describe("getNextUrl", () => {
     process.env.DEFAULT_REDIRECT_URI = "/dashboard";
     vi.mocked(headers).mockResolvedValue({} as any);
     vi.mocked(getPublicHostWithProtocol).mockReturnValue("https://my-host.com");
-    process.env.NEXT_PUBLIC_BASE_PATH = "/ui/v2/login";
+    process.env.NEXT_PUBLIC_BASE_PATH = "/custom/login";
 
     const result = await getNextUrl(command);
     expect(result).toBe("https://my-host.com/dashboard");

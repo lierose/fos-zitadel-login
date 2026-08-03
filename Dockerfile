@@ -13,6 +13,15 @@ RUN pnpm build
 
 FROM node:24-alpine AS login-standalone
 
+ARG VERSION=dev
+ARG REVISION=unknown
+
+LABEL org.opencontainers.image.title="IFA ZITADEL Login V2" \
+    org.opencontainers.image.description="Standalone FOS login UI for ZITADEL" \
+    org.opencontainers.image.source="https://github.com/lierose/fos-zitadel-login" \
+    org.opencontainers.image.version="$VERSION" \
+    org.opencontainers.image.revision="$REVISION"
+
 WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
@@ -23,6 +32,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --chown=nextjs:nodejs --from=build /app/.next/standalone ./
 
 USER nextjs
+EXPOSE 3000
 ENV HOSTNAME="::" \
     PORT="3000" \
     NODE_ENV="production" \

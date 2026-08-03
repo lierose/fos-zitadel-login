@@ -31,10 +31,42 @@ pnpm lint-check-prettier
 pnpm typecheck
 pnpm test-unit
 pnpm build
-docker build -t fos-zitadel-login .
+make image
+make smoke
 ```
 
 The container exposes port 3000 and provides `/healthy` and `/ready` probes.
+
+The default image reference is `registry.liero.se/ifa-zitadel-login-v2:latest` (a slash is required between registry and repository). Builds also receive an immutable `git-<sha>` tag. Override the defaults when needed:
+
+```sh
+make image TAG=v4.16.2 PLATFORM=linux/amd64
+make push TAG=v4.16.2 PLATFORM=linux/amd64
+```
+
+`make push` requires an authenticated Docker client and pushes both the selected tag and the Git SHA tag.
+
+## ZITADEL Login V2 URL
+
+This standalone image is built for the URL root. `NEXT_PUBLIC_BASE_PATH` is empty, the probes are `/healthy` and `/ready`, and neither `/ui/v2/login` nor `/v2/login` is served by the container.
+
+Configure the ZITADEL instance-level Login V2 feature `BaseURI`, or the application's custom Login V2 base URL, to the full public root URL of this service. For example:
+
+```yaml
+DefaultInstance:
+  Features:
+    LoginV2:
+      Required: true
+      BaseURI: https://login.example.se
+```
+
+The equivalent environment variable for defaults on a new instance is:
+
+```sh
+ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI=https://login.example.se
+```
+
+For an existing instance, update Login V2 through Console or the Feature API. Do not leave the base URI empty: that selects ZITADEL's built-in `/ui/v2/login` path. External IdP routing must use the public login domain's `/idps/callback` endpoint.
 
 ## Updating from ZITADEL
 

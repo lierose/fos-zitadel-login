@@ -235,7 +235,7 @@ describe("trySendVerification", () => {
 
   beforeEach(() => {
     originalBasePath = process.env.NEXT_PUBLIC_BASE_PATH;
-    process.env.NEXT_PUBLIC_BASE_PATH = "/ui/v2/login";
+    process.env.NEXT_PUBLIC_BASE_PATH = "/custom/login";
 
     vi.clearAllMocks();
     mockSendEmailCode = zitadelSendEmailCode;
@@ -262,7 +262,7 @@ describe("trySendVerification", () => {
     expect(mockSendEmailCode).toHaveBeenCalledWith({
       serviceConfig: {},
       userId: "user-1",
-      urlTemplate: "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}",
+      urlTemplate: "https://example.com/custom/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}",
     });
     expect(mockCreateInviteCode).not.toHaveBeenCalled();
   });
@@ -278,7 +278,7 @@ describe("trySendVerification", () => {
       serviceConfig: {},
       userId: "user-1",
       urlTemplate:
-        "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true",
+        "https://example.com/custom/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true",
     });
     expect(mockSendEmailCode).not.toHaveBeenCalled();
   });
@@ -295,7 +295,7 @@ describe("trySendVerification", () => {
       serviceConfig: {},
       userId: "user-1",
       urlTemplate:
-        "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&requestId=req-123",
+        "https://example.com/custom/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&requestId=req-123",
     });
   });
 
@@ -311,7 +311,7 @@ describe("trySendVerification", () => {
       serviceConfig: {},
       userId: "user-1",
       urlTemplate:
-        "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&requestId=req%26id%3Dinjected",
+        "https://example.com/custom/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&requestId=req%26id%3Dinjected",
     });
   });
 
@@ -327,7 +327,7 @@ describe("trySendVerification", () => {
       serviceConfig: {},
       userId: "user-1",
       urlTemplate:
-        "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true&requestId=req-456",
+        "https://example.com/custom/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true&requestId=req-456",
     });
   });
 

@@ -68,7 +68,7 @@ DEBUG=false
 LOGIN_BASE_URL=${LOGIN_BASE_URL}
 NODE_TLS_REJECT_UNAUTHORIZED=0
 ZITADEL_ADMIN_USER=${ZITADEL_ADMIN_USER:-"zitadel-admin@zitadel.localhost"}
-NEXT_PUBLIC_BASE_PATH=/ui/v2/login
+NEXT_PUBLIC_BASE_PATH=
 " > ${WRITE_ENVIRONMENT_FILE}
 
 echo "Wrote environment file ${WRITE_ENVIRONMENT_FILE}"
@@ -136,4 +136,3 @@ do
   DEFAULTORG_RESPONSE_RESULTS=$(echo $DEFAULTORG_RESPONSE | jq -r '.result | length')
   echo "Received default organization response result: ${DEFAULTORG_RESPONSE_RESULTS}"
 done
-

@@ -46,7 +46,7 @@ declare namespace NodeJS {
     CUSTOM_REQUEST_HEADERS?: string;
 
     /**
-     * The base path the app is served from, e.g. /ui/v2/login
+     * The base path the app is served from, e.g. /custom/login
      */
     NEXT_PUBLIC_BASE_PATH: string;
 
